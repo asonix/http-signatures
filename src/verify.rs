@@ -100,7 +100,7 @@ impl TryFrom<String> for AuthorizationHeader {
 
         let header_keys = key_value
             .get("headers")
-            .ok_or(DecodeError::MissingKey("headers"))?
+            .unwrap_or(&"date".into())
             .trim_left_matches("\"")
             .trim_right_matches("\"")
             .split(' ')

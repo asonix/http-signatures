@@ -34,7 +34,7 @@ where
         key_id: String,
         key: T,
         algorithm: SignatureAlgorithm,
-    ) -> HttpSignature<T>;
+    ) -> Result<HttpSignature<T>, Error>;
 
     fn authorization_header(
         &self,
@@ -42,7 +42,7 @@ where
         key: T,
         algorithm: SignatureAlgorithm,
     ) -> Result<String, Error> {
-        let signing_string: SigningString<T> = self.as_http_signature(key_id, key, algorithm)
+        let signing_string: SigningString<T> = self.as_http_signature(key_id, key, algorithm)?
             .into();
         let signature: Signature = signing_string.try_into()?;
 
@@ -75,13 +75,17 @@ impl<T> HttpSignature<T> {
         key: T,
         algorithm: SignatureAlgorithm,
         headers: HashMap<String, Vec<String>>,
-    ) -> Self {
-        HttpSignature {
+    ) -> Result<Self, Error> {
+        if headers.is_empty() {
+            return Err(Error::NoHeaders);
+        }
+
+        Ok(HttpSignature {
             key_id,
             key,
             algorithm,
             headers,
-        }
+        })
     }
 
     pub fn key_id(&self) -> &str {

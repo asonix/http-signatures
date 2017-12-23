@@ -197,7 +197,8 @@ mod tests {
         let algorithm = SignatureAlgorithm::HMAC(sha_size);
         let key_id = "1".into();
 
-        let http_sig = HttpSignature::new(key_id, Cursor::new(key_vec), algorithm, headers_one);
+        let http_sig = HttpSignature::new(key_id, Cursor::new(key_vec), algorithm, headers_one)
+            .unwrap();
 
         let signing_string: SigningString<_> = http_sig.into();
         let signature: Signature = signing_string.try_into().unwrap();
@@ -233,7 +234,7 @@ mod tests {
         let algorithm = SignatureAlgorithm::RSA(sha_size);
         let key_id = "1".into();
 
-        let http_sig = HttpSignature::new(key_id, priv_key, algorithm, headers_one);
+        let http_sig = HttpSignature::new(key_id, priv_key, algorithm, headers_one).unwrap();
 
         let signing_string: SigningString<_> = http_sig.into();
         let signature: Signature = signing_string.try_into().unwrap();

@@ -18,6 +18,7 @@ use std::io::Error as IoError;
 #[derive(Debug)]
 pub enum Error {
     IO(IoError),
+    NoHeaders,
     SigningError,
     BadPrivateKey,
     Unknown,

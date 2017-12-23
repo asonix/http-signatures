@@ -31,7 +31,7 @@ where
         key_id: String,
         key: T,
         algorithm: SignatureAlgorithm,
-    ) -> HttpSignature<T> {
+    ) -> Result<HttpSignature<T>, Error> {
         let mut headers = HashMap::new();
         headers.insert(
             "(request-target)".into(),
