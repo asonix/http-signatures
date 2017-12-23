@@ -2,6 +2,8 @@
 
 This crate is used to create and verify HTTP Signatures, defined [here](https://tools.ietf.org/html/draft-cavage-http-signatures-09). It has support for Hyper, Rocket, and Reqwest types. In the future, I might also support Iron middleware for verification.
 
+[crates.io](https://crates.io/crates/http-signatures) [docs.rs](https://docs.rs/http-signatures/)
+
 ### Running the examples
 Since this crate is built to modularly require dependencies, running the examples is not as straightforward as for other projects. To run `hyper_server` and `hyper_client`, the proper commands are `cargo run --example hyper_server --features use_hyper` and `cargo run --example hyper_client --features use_hyper`. The hyper examples are configured to talk to eachother by default. The server runs on port 3000, and the client POSTs on port 3000. The rocket server (`cargo run --example rocket --features use_rocket`) runs on port 8000, and the reqwest client (`cargo run --example reqwest --features use_reqwest`) GETs on port 8000.
 
