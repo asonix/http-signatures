@@ -10,16 +10,19 @@ keywords = ["web", "http", "signatures"]
 
 [features]
 default = []
-use_hyper = ["hyper"]
+use_hyper = ["hyper", "futures", "tokio-core"]
 use_reqwest = ["reqwest"]
-use_rocket = ["rocket"]
+use_rocket = ["rocket", "rocket_codegen"]
 
 [dependencies]
 untrusted = "0.5"
 base64 = "0.6"
 hyper = { version = "0.11", optional = true }
+futures = { version = "0.1", optional = true }
+tokio-core = { version = "0.1", optional = true }
 reqwest = { version = "0.8", optional = true }
 rocket = { version = "0.3", optional = true }
+rocket_codegen = { version = "0.3", optional = true }
 
 [dependencies.ring]
 version = "0.11"

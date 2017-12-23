@@ -1,6 +1,9 @@
 # HTTP Signatures
 
-This crate is used to create and verify HTTP Signatures, defined [here](https://tools.ietf.org/html/draft-cavage-http-signatures-09). It has support for Hyper, Rocket, and Reqwest types, although currently these adapters have not been tested. In the future, I might also support Iron middleware for verification.
+This crate is used to create and verify HTTP Signatures, defined [here](https://tools.ietf.org/html/draft-cavage-http-signatures-09). It has support for Hyper, Rocket, and Reqwest types. In the future, I might also support Iron middleware for verification.
+
+### Running the examples
+Since this crate is built to modularly require dependencies, running the examples is not as straightforward as for other projects. To run `hyper_server` and `hyper_client`, the proper commands are `cargo run --example hyper_server --features use_hyper` and `cargo run --example hyper_client --features use_hyper`. The hyper examples are configured to talk to eachother by default. The server runs on port 3000, and the client POSTs on port 3000. The rocket server (`cargo run --example rocket --features use_rocket`) runs on port 8000, and the reqwest client (`cargo run --example reqwest --features use_reqwest`) GETs on port 8000.
 
 ### Usage
 #### With Hyper
@@ -13,28 +16,24 @@ features = ["use_hyper"]
 ##### Client
 Use it when building a request as follows.
 ```rust
-extern crate hyper;
-extern crate tokio_core;
-extern crate http_signatures;
-
-use tokio_core::reactor::Core;
-use hyper::{Client, Method, Request};
-use http_signatures::{WithHttpRequest, SignatureAlgorithm, ShaSize};
-
 let key_id = "some-username-or-something";
-let private_key = File.open("some-public-key.der")?;
+let private_key = File::open("test/assets/private.der").unwrap();
 
-let mut core = Core::new()?;
+let mut core = Core::new().unwrap();
 let client = Client::new(&core.handle());
 
-let mut req = Request::new(Method::Post, "https://example.com");
+let json = r#"{"library":"hyper"}"#;
+let mut req = Request::new(Method::Post, "http://localhost:3000".parse().unwrap());
 req.headers_mut().set(ContentType::json());
 req.headers_mut().set(ContentLength(json.len() as u64));
+req.set_body(json);
 
 // Add the HTTP Signature
-req.with_http_signature(key_id.into(), private_key, SignatureAlgorithm::RSA(ShaSize::FiveTwelve))?;
-
-req.set_body(json);
+req.with_http_signature(
+    key_id.into(),
+    private_key,
+    SignatureAlgorithm::RSA(ShaSize::FiveTwelve),
+).unwrap();
 
 let post = client.request(req).and_then(|res| {
     println!("POST: {}", res.status());
@@ -42,71 +41,74 @@ let post = client.request(req).and_then(|res| {
     res.body().concat2()
 });
 
-core.run(post);
+core.run(post).unwrap();
 ```
 ##### Server
 This is a very basic example server outline that should give you a general idea of how to set up a Hyper server that verifies HTTP Signatures. This is not meant to be code that actually works.
 ```rust
-extern crate hyper;
-extern crate futures;
-extern crate http_signatures;
-
-use futures::future::Future;
-
-use hyper::header::ContentLength;
-use hyper::server::{Http, Request, Response, Service};
-use http_signatures::{GetKey, VerifyAuthorizationHeader};
-
 #[derive(Clone)]
 struct MyKeyGetter {
-    key: std::fs::File;
+    key: Vec<u8>,
 }
 
 impl MyKeyGetter {
     fn new(filename: &str) -> Result<Self, ..> {
-        MyKeyGetter {
-            key: std::fs::File::open(filename)?,
-        }
+        let mut key = Vec::new();
+        std::fs::File::open(filename)
+            .map_err(|_| ..)?
+            .read_to_end(&mut key)
+            .map_err(|_| ..)?;
+
+        Ok(MyKeyGetter { key })
     }
 }
 
 impl GetKey for MyKeyGetter {
-    type Key = std::fs::File;
+    type Key = Cursor<Vec<u8>>;
     type Error = ..;
 
-    fn get_key(self, _key_id: String) -> Result<Self::Key, Self::Error> {
-        Ok(self.key)
+    fn get_key(self, _key_id: String) -> Result<Self::Key, ..> {
+        Ok(Cursor::new(self.key.clone()))
     }
 }
 
 struct HelloWorld {
     key_getter: MyKeyGetter,
-};
+}
 
 impl HelloWorld {
     fn new(filename: &str) -> Result<Self, ..> {
-        HelloWorld {
-            key_getter: MyKeyGetter::new(filename)?,
-        }
+        Ok(HelloWorld { key_getter: MyKeyGetter::new(filename)? })
     }
 }
 
-impl Service for HelloWorld {
-    type Request = Request;
-    type Response = ..;
-    type Error = ..;
+const PHRASE: &'static str = "Hewwo, Mr. Obama???";
 
-    type Future = ..;
+impl Service for HelloWorld {
+    ...
 
     fn call(&self, req: Request) -> Self::Future {
-        req.verify_authorization_header(self.key_getter.clone())?;
-        ...
+        let verified = req.verify_authorization_header(self.key_getter.clone())
+            .map_err(|_| hyper::Error::Header);
+
+        Box::new(verified.into_future().and_then(|_| {
+            println!("Succesfully verified request!");
+            Ok(
+                Response::new()
+                    .with_header(ContentLength(PHRASE.len() as u64))
+                    .with_body(PHRASE),
+            )
+        }))
     }
 }
 
 fn main() {
-    let addr = ..;
-    let server = Http::new().bind(&addr, || Ok(HelloWorld::new("some-keyfile").unwrap())).unwrap();
+    let addr = "127.0.0.1:3000".parse().unwrap();
+    let server = Http::new()
+        .bind(&addr, || {
+            Ok(HelloWorld::new("test/assets/public.der").unwrap())
+        })
+        .unwrap();
     server.run().unwrap();
 }
 ```
@@ -120,21 +122,23 @@ features = ["use_reqwest"]
 In your code, use it when building a request as follows.
 
 ```rust
-extern crate reqwest;
-extern crate http_signatures;
-
-use reqwest::Client;
-use http_signatures::{WithHttpRequest, SignatureAlgorithm, ShaSize};
-
 let key_id = "some-username-or-something".into();
-let private_key = File.open("some-public-key.der")?;
+let private_key = File::open("test/assets/private.der").unwrap();
 
 let client = Client::new();
-let req = client.post("https://example.com")
+let mut req = client
+    .post("http://localhost:3000")
     .body("Some Body")
-    .with_http_signature(key_id, private_key, SignatureAlgorithm::RSA(ShaSize::FiveTwelve))?;
+    .build()
+    .unwrap();
 
-client::execute(req)?;
+req.with_http_signature(
+    key_id,
+    private_key,
+    SignatureAlgorithm::RSA(ShaSize::FiveTwelve),
+).unwrap();
+
+client.execute(req).unwrap();
 ```
 #### With Rocket
 Add this to your `Cargo.toml`
@@ -145,36 +149,77 @@ features = ["use_rocket"]
 ```
 In your code, use it in a route like so
 ```rust
-use http_signatures::{GetKey, VerifyAuthorizationHeader};
-
+#[derive(Clone)]
 struct MyKeyGetter {
-    key: std::fs::File;
+    key: Vec<u8>,
 }
 
 impl MyKeyGetter {
-    fn new(filename: &str) -> Result<Self, ..> {
-        MyKeyGetter {
-            key: std::fs::File::open(filename)?,
-        }
+    fn new(filename: &str) -> Result<Self, Error> {
+        let mut key = Vec::new();
+        std::fs::File::open(filename)
+            .map_err(|_| ..)?
+            .read_to_end(&mut key)
+            .map_err(|_| ..)?;
+
+        Ok(MyKeyGetter { key })
     }
 }
 
 impl GetKey for MyKeyGetter {
-    type Key = std::fs::File;
+    type Key = Cursor<Vec<u8>>;
     type Error = ..;
 
     fn get_key(self, _key_id: String) -> Result<Self::Key, Self::Error> {
-        Ok(self.key)
+        Ok(Cursor::new(self.key.clone()))
     }
 }
 
-#[get("/some-endpoint")]
-fn endpoint(req: Request) -> Result<String, ..> {
-    req.verify_authorization_header(MyKeyGetter::new("some-key-file")?)?;
-    ...
+struct Verified;
+
+impl<'a, 'r> FromRequest<'a, 'r> for Verified {
+    type Error = ();
+
+    fn from_request(request: &'a Request<'r>) -> Outcome<Verified, ()> {
+        let res = request
+            .guard::<State<MyKeyGetter>>()
+            .succeeded()
+            .ok_or(())
+            .and_then(|key_getter| {
+                request
+                    .verify_authorization_header(key_getter.clone())
+                    .map_err(|_| ..)?;
+
+                Ok(Verified)
+            });
+
+        match res {
+            Ok(verified) => Success(verified),
+            Err(fail) => Failure((Status::Forbidden, fail)),
+        }
+    }
 }
 
+#[get("/")]
+fn index(_verified: Verified) -> &'static str {
+    "Successfully verified request"
+}
+
+fn main() {
+    let key_getter = MyKeyGetter::new("test/assets/public.der").unwrap();
+
+    rocket::ignite()
+        .mount("/", routes![index])
+        .manage(key_getter)
+        .launch();
+}
 ```
+
+### Testing
+Since examples could have tests, they get compiled during a `cargo test`. Be sure to run `cargo test --all-features`.
+
+### Contributing
+Please be aware that all code contributed to this project will be licensed under the GPL version 3.
 
 ### License
 HTTP Signatures is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
