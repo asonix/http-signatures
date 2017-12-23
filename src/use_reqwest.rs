@@ -16,7 +16,9 @@
 use std::io::Read;
 use std::collections::HashMap;
 
-use super::{AsHttpSignature, WithHttpSignature, HttpSignature, SignatureAlgorithm, Error};
+use error::Error;
+use super::SignatureAlgorithm;
+use create::{AsHttpSignature, WithHttpSignature, HttpSignature};
 
 use reqwest::Request as ReqwestRequest;
 
@@ -59,12 +61,7 @@ where
             acc
         });
 
-        HttpSignature {
-            key_id,
-            key,
-            algorithm,
-            headers,
-        }
+        HttpSignature::new(key_id, key, algorithm, headers)
     }
 }
 
