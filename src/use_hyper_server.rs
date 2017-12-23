@@ -28,17 +28,22 @@ impl VerifyAuthorizationHeader for Request {
             VerificationError::HeaderNotPresent,
         )?;
 
-        let auth_header = AuthorizationHeader::new(auth_header.clone())?;
+        let auth_header = AuthorizationHeader::new(auth_header)?;
 
-        let headers: Vec<(String, String)> = self.headers()
+        let headers: Vec<(&str, String)> = self.headers()
             .iter()
             .map(|header_view| {
-                (header_view.name().into(), header_view.value_string())
+                (header_view.name(), header_view.value_string())
             })
             .collect();
 
+        let headers_borrowed: Vec<(&str, &str)> = headers
+            .iter()
+            .map(|&(key, ref val)| (key, val.as_ref()))
+            .collect();
+
         auth_header.verify(
-            headers.as_ref(),
+            headers_borrowed.as_ref(),
             &self.method().as_ref().to_lowercase(),
             self.path(),
             self.query(),

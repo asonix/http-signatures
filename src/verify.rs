@@ -22,14 +22,20 @@ use ring::error::Unspecified;
 use base64::decode;
 use untrusted::Input;
 
-use super::{SignatureAlgorithm, ShaSize};
+use super::{SignatureAlgorithm, ShaSize, REQUEST_TARGET};
 use error::{DecodeError, VerificationError};
+
+const KEY_ID: &'static str = "keyId";
+const HEADERS: &'static str = "headers";
+const ALGORITHM: &'static str = "algorithm";
+const DATE: &'static str = "date";
+const SIGNATURE: &'static str = "signature";
 
 pub trait GetKey {
     type Key: Read;
     type Error;
 
-    fn get_key(self, key_id: String) -> Result<Self::Key, Self::Error>;
+    fn get_key(self, key_id: &str) -> Result<Self::Key, Self::Error>;
 }
 
 pub trait VerifyAuthorizationHeader {
@@ -39,21 +45,21 @@ pub trait VerifyAuthorizationHeader {
     ) -> Result<(), VerificationError>;
 }
 
-pub struct AuthorizationHeader {
-    key_id: String,
-    header_keys: Vec<String>,
+pub struct AuthorizationHeader<'a> {
+    key_id: &'a str,
+    header_keys: Vec<&'a str>,
     algorithm: SignatureAlgorithm,
     signature: Vec<u8>,
 }
 
-impl AuthorizationHeader {
-    pub fn new(s: String) -> Result<Self, DecodeError> {
+impl<'a> AuthorizationHeader<'a> {
+    pub fn new(s: &'a str) -> Result<Self, DecodeError> {
         s.try_into()
     }
 
     pub fn verify<G>(
         self,
-        headers: &[(String, String)],
+        headers: &[(&str, &str)],
         method: &str,
         path: &str,
         query: Option<&str>,
@@ -74,49 +80,44 @@ impl AuthorizationHeader {
     }
 }
 
-impl TryFrom<String> for AuthorizationHeader {
+impl<'a> TryFrom<&'a str> for AuthorizationHeader<'a> {
     type Error = DecodeError;
 
-    fn try_from(s: String) -> Result<Self, Self::Error> {
+    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
         let s = s.trim_left_matches("Signature: ");
         let key_value = s.split(',')
             .filter_map(|item| {
-                let key_value_slice: Vec<_> = item.split('=').collect();
-
-                if key_value_slice.len() >= 2 {
-                    Some((key_value_slice[0], key_value_slice[1..].join("=")))
-                } else {
-                    None
-                }
+                let eq_index = item.find("=")?;
+                let tup = item.split_at(eq_index);
+                let val = tup.1.get(1..)?;
+                Some((tup.0, val))
             })
-            .collect::<HashMap<_, _>>();
+            .collect::<HashMap<&str, &str>>();
 
-        let key_id = (*key_value
-                          .get("keyId")
-                          .ok_or(DecodeError::MissingKey("keyId"))?
-                          .trim_left_matches("\"")
-                          .trim_right_matches("\""))
-            .into();
+        let key_id = key_value
+            .get(KEY_ID)
+            .ok_or(DecodeError::MissingKey(KEY_ID))?
+            .trim_left_matches("\"")
+            .trim_right_matches("\"");
 
         let header_keys = key_value
-            .get("headers")
-            .unwrap_or(&"date".into())
+            .get(HEADERS)
+            .unwrap_or(&DATE)
             .trim_left_matches("\"")
             .trim_right_matches("\"")
             .split(' ')
-            .map(|header| header.into())
             .collect();
 
         let algorithm = (*key_value
-                             .get("algorithm")
-                             .ok_or(DecodeError::MissingKey("algorithm"))?
+                             .get(ALGORITHM)
+                             .ok_or(DecodeError::MissingKey(ALGORITHM))?
                              .trim_left_matches("\"")
                              .trim_right_matches("\""))
             .try_into()?;
 
         let sig_string: String = key_value
-            .get("signature")
-            .ok_or(DecodeError::MissingKey("signature"))?
+            .get(SIGNATURE)
+            .ok_or(DecodeError::MissingKey(SIGNATURE))?
             .trim_left_matches("\"")
             .trim_right_matches("\"")
             .into();
@@ -133,15 +134,15 @@ impl TryFrom<String> for AuthorizationHeader {
 }
 
 pub struct CheckAuthorizationHeader<'a> {
-    auth_header: AuthorizationHeader,
-    headers: &'a [(String, String)],
+    auth_header: AuthorizationHeader<'a>,
+    headers: &'a [(&'a str, &'a str)],
     method: &'a str,
     path: &'a str,
     query: Option<&'a str>,
 }
 
 impl<'a> CheckAuthorizationHeader<'a> {
-    pub fn verify<G>(self, key_getter: G) -> Result<(), VerificationError>
+    pub fn verify<G>(&self, key_getter: G) -> Result<(), VerificationError>
     where
         G: GetKey,
     {
@@ -149,23 +150,23 @@ impl<'a> CheckAuthorizationHeader<'a> {
             VerificationError::GetKey
         })?;
 
-        let headers: HashMap<String, Vec<String>> =
+        let headers: HashMap<String, Vec<&str>> =
             self.headers.iter().fold(HashMap::new(), |mut acc,
              &(ref key, ref value)| {
-                acc.entry(key.clone().to_lowercase())
-                    .or_insert(Vec::new())
-                    .push(value.clone());
+                acc.entry(key.to_lowercase()).or_insert(Vec::new()).push(
+                    value,
+                );
 
                 acc
             });
 
-        let mut headers: HashMap<String, String> = headers
+        let mut headers: HashMap<&str, String> = headers
             .iter()
-            .map(|(key, value)| (key.clone(), value.join(", ")))
+            .map(|(key, value)| (key.as_ref(), value.join(", ")))
             .collect();
 
         headers.insert(
-            "(request-target)".into(),
+            REQUEST_TARGET.into(),
             if let Some(ref query) = self.query {
                 format!(
                     "{} {}?{}",
@@ -202,7 +203,7 @@ impl<'a> CheckAuthorizationHeader<'a> {
         let signing_string = signing_vec.0.join("\n");
 
         match self.auth_header.algorithm {
-            SignatureAlgorithm::RSA(sha_size) => {
+            SignatureAlgorithm::RSA(ref sha_size) => {
                 Self::verify_rsa(
                     key,
                     sha_size,
@@ -210,7 +211,7 @@ impl<'a> CheckAuthorizationHeader<'a> {
                     self.auth_header.signature.as_ref(),
                 )
             }
-            SignatureAlgorithm::HMAC(sha_size) => {
+            SignatureAlgorithm::HMAC(ref sha_size) => {
                 Self::verify_hmac(
                     key,
                     sha_size,
@@ -223,7 +224,7 @@ impl<'a> CheckAuthorizationHeader<'a> {
 
     fn verify_rsa<T>(
         mut key: T,
-        sha_size: ShaSize,
+        sha_size: &ShaSize,
         signing_string: String,
         sig: &[u8],
     ) -> Result<(), VerificationError>
@@ -239,7 +240,7 @@ impl<'a> CheckAuthorizationHeader<'a> {
         let message = Input::from(signing_string.as_ref());
         let signature = Input::from(sig);
 
-        match sha_size {
+        match *sha_size {
             ShaSize::TwoFiftySix => {
                 signature::verify(
                     &signature::RSA_PKCS1_2048_8192_SHA256,
@@ -271,7 +272,7 @@ impl<'a> CheckAuthorizationHeader<'a> {
 
     fn verify_hmac<T>(
         mut key: T,
-        sha_size: ShaSize,
+        sha_size: &ShaSize,
         signing_string: String,
         sig: &[u8],
     ) -> Result<(), VerificationError>
@@ -283,7 +284,7 @@ impl<'a> CheckAuthorizationHeader<'a> {
             |_| VerificationError::ReadKey,
         )?;
         let hmac_key = hmac::SigningKey::new(
-            match sha_size {
+            match *sha_size {
                 ShaSize::TwoFiftySix => &digest::SHA256,
                 ShaSize::ThreeEightyFour => &digest::SHA384,
                 ShaSize::FiveTwelve => &digest::SHA512,

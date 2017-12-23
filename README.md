@@ -67,7 +67,7 @@ impl GetKey for MyKeyGetter {
     type Key = Cursor<Vec<u8>>;
     type Error = ..;
 
-    fn get_key(self, _key_id: String) -> Result<Self::Key, ..> {
+    fn get_key(self, _key_id: &str) -> Result<Self::Key, ..> {
         Ok(Cursor::new(self.key.clone()))
     }
 }
@@ -170,7 +170,7 @@ impl GetKey for MyKeyGetter {
     type Key = Cursor<Vec<u8>>;
     type Error = ..;
 
-    fn get_key(self, _key_id: String) -> Result<Self::Key, Self::Error> {
+    fn get_key(self, _key_id: &str) -> Result<Self::Key, Self::Error> {
         Ok(Cursor::new(self.key.clone()))
     }
 }

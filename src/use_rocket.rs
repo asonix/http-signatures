@@ -27,15 +27,20 @@ impl<'r> VerifyAuthorizationHeader for Request<'r> {
             VerificationError::HeaderNotPresent,
         )?;
 
-        let auth_header = AuthorizationHeader::new(String::from(auth_header))?;
+        let auth_header = AuthorizationHeader::new(auth_header)?;
 
         let headers: Vec<(String, String)> = self.headers()
             .iter()
             .map(|header| (header.name().into(), header.value().into()))
             .collect();
 
+        let headers_borrowed: Vec<(&str, &str)> = headers
+            .iter()
+            .map(|&(ref key, ref val)| (key.as_ref(), val.as_ref()))
+            .collect();
+
         auth_header.verify(
-            headers.as_ref(),
+            headers_borrowed.as_ref(),
             self.method().as_str(),
             self.uri().path(),
             self.uri().query(),

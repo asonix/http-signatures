@@ -17,7 +17,7 @@ use std::io::Read;
 use std::collections::HashMap;
 
 use error::Error;
-use super::SignatureAlgorithm;
+use super::{SignatureAlgorithm, REQUEST_TARGET};
 use create::{AsHttpSignature, WithHttpSignature, HttpSignature};
 
 use hyper::Request as HyperRequest;
@@ -34,7 +34,7 @@ where
     ) -> Result<HttpSignature<T>, Error> {
         let mut headers = HashMap::new();
         headers.insert(
-            "(request-target)".into(),
+            REQUEST_TARGET.into(),
             vec![
                 if let Some(ref query) = self.uri().query() {
                     format!(

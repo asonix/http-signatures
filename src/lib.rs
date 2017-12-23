@@ -14,6 +14,7 @@
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
 #![feature(try_from)]
+#![feature(underscore_lifetimes)]
 
 #[cfg(feature = "use_hyper")]
 extern crate hyper;
@@ -43,6 +44,8 @@ mod error;
 pub use create::{AsHttpSignature, WithHttpSignature, HttpSignature, SigningString};
 pub use verify::{AuthorizationHeader, VerifyAuthorizationHeader, GetKey};
 pub use error::{Error, DecodeError, VerificationError};
+
+const REQUEST_TARGET: &'static str = "(request-target)";
 
 #[derive(Debug)]
 pub enum ShaSize {
@@ -103,13 +106,14 @@ mod tests {
     use std::io::Cursor;
     use std::fs::File;
 
-    use super::HttpSignature;
     use super::SignatureAlgorithm;
-    use super::SigningString;
-    use super::GetKey;
-    use super::AuthorizationHeader;
     use super::ShaSize;
-    use super::VerificationError;
+    use super::REQUEST_TARGET;
+    use create::HttpSignature;
+    use create::SigningString;
+    use verify::GetKey;
+    use verify::AuthorizationHeader;
+    use error::VerificationError;
     use create::Signature;
 
     struct HmacKeyGetter {
@@ -120,7 +124,7 @@ mod tests {
         type Key = Cursor<Vec<u8>>;
         type Error = VerificationError;
 
-        fn get_key(self, _: String) -> Result<Self::Key, Self::Error> {
+        fn get_key(self, _: &str) -> Result<Self::Key, Self::Error> {
             Ok(Cursor::new(self.key))
         }
     }
@@ -133,7 +137,7 @@ mod tests {
         type Key = File;
         type Error = VerificationError;
 
-        fn get_key(self, _: String) -> Result<Self::Key, Self::Error> {
+        fn get_key(self, _: &str) -> Result<Self::Key, Self::Error> {
             Ok(self.key)
         }
     }
@@ -187,7 +191,7 @@ mod tests {
         let mut headers_one: HashMap<String, Vec<String>> = HashMap::new();
         headers_one.insert("Accept".into(), vec!["application/json".into()]);
         headers_one.insert(
-            "(request-target)".into(),
+            REQUEST_TARGET.into(),
             vec![format!("{} {}?{}", method.to_lowercase(), path, query)],
         );
 
@@ -204,7 +208,7 @@ mod tests {
         let signature: Signature = signing_string.try_into().unwrap();
 
         let auth_header = signature.authorization();
-        let auth_header = AuthorizationHeader::new(auth_header).unwrap();
+        let auth_header = AuthorizationHeader::new(&auth_header).unwrap();
 
         auth_header
             .verify(&headers_two, method, path, Some(query), key_getter)
@@ -224,7 +228,7 @@ mod tests {
         let mut headers_one: HashMap<String, Vec<String>> = HashMap::new();
         headers_one.insert("Accept".into(), vec!["application/json".into()]);
         headers_one.insert(
-            "(request-target)".into(),
+            REQUEST_TARGET.into(),
             vec![format!("{} {}?{}", method.to_lowercase(), path, query)],
         );
 
@@ -240,7 +244,7 @@ mod tests {
         let signature: Signature = signing_string.try_into().unwrap();
 
         let auth_header = signature.authorization();
-        let auth_header = AuthorizationHeader::new(auth_header).unwrap();
+        let auth_header = AuthorizationHeader::new(&auth_header).unwrap();
 
         auth_header
             .verify(&headers_two, method, path, Some(query), key_getter)
