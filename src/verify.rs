@@ -182,15 +182,24 @@ impl<'a> CheckAuthorizationHeader<'a> {
             },
         );
 
-        let signing_string = self.auth_header
-            .header_keys
-            .iter()
-            .filter_map(|header_key| {
-                let header = headers.get(header_key)?;
-                Some(format!("{}: {}", header_key, header))
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
+        let signing_vec = self.auth_header.header_keys.iter().fold(
+            (Vec::new(), Vec::new()),
+            |mut acc, header_key| {
+                if let Some(ref header) = headers.get(header_key) {
+                    acc.0.push(format!("{}: {}", header_key, header));
+                } else {
+                    acc.1.push(header_key.clone());
+                }
+
+                acc
+            },
+        );
+
+        if signing_vec.1.len() > 0 {
+            return Err(VerificationError::MissingHeaders(signing_vec.1.join(", ")));
+        }
+
+        let signing_string = signing_vec.0.join("\n");
 
         match self.auth_header.algorithm {
             SignatureAlgorithm::RSA(sha_size) => {

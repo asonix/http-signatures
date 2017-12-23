@@ -41,6 +41,7 @@ pub enum DecodeError {
 #[derive(Debug)]
 pub enum VerificationError {
     Decode(DecodeError),
+    MissingHeaders(String),
     GetKey,
     ReadKey,
     BadSignature,
