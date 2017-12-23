@@ -15,10 +15,12 @@
 
 #![feature(try_from)]
 
-#[cfg(use_hyper)]
+#[cfg(feature = "use_hyper")]
 extern crate hyper;
-#[cfg(use_reqwest)]
+
+#[cfg(feature = "use_reqwest")]
 extern crate reqwest;
+
 extern crate ring;
 extern crate untrusted;
 extern crate base64;
@@ -28,12 +30,14 @@ use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 use std::sync::Arc;
 
-#[cfg(use_hyper)]
-use hyper::Request as HyperRequest;
-#[cfg(use_reqwest)]
-use reqwest::RequestBuilder as ReqwestRequest;
 use ring::{rand, signature, digest, hmac};
 use base64::{encode, decode};
+
+#[cfg(feature = "use_hyper")]
+mod use_hyper;
+
+#[cfg(feature = "use_reqwest")]
+mod use_reqwest;
 
 #[derive(Debug)]
 pub enum ShaSize {
@@ -119,7 +123,7 @@ where
         key_id: String,
         key: T,
         algorithm: SignatureAlgorithm,
-    ) -> &mut Self;
+    ) -> Result<&mut Self, Error>;
 }
 
 pub struct HttpSignature<T> {
@@ -127,146 +131,6 @@ pub struct HttpSignature<T> {
     key: T,
     algorithm: SignatureAlgorithm,
     headers: HashMap<String, Vec<String>>,
-}
-
-#[cfg(use_hyper)]
-impl<T> AsHttpSignature<T> for HyperRequest
-where
-    T: Read,
-{
-    fn as_http_signature(
-        &self,
-        key_id: String,
-        key: T,
-        algorithm: SignatureAlgorithm,
-    ) -> HttpSignature<T> {
-        let mut headers = HashMap::new();
-        headers.insert(
-            "(request-target)".into(),
-            vec![
-                if let Some(ref query) = self.uri().query() {
-                    format!(
-                        "{} {}?{}",
-                        self.method().as_ref().to_lowercase(),
-                        self.uri().path(),
-                        query
-                    )
-                } else {
-                    format!(
-                        "{} {}",
-                        self.method().as_ref().to_lowercase(),
-                        self.uri().path()
-                    )
-                },
-            ],
-        );
-
-        let headers = self.headers.iter().fold(headers, |acc, header_view| {
-            acc.entry(header.name().into()).or_insert(Vec::new()).push(
-                header.value_string(),
-            );
-        });
-
-        HttpSignature {
-            key_id,
-            key,
-            algorithm,
-            headers,
-        }
-    }
-}
-
-#[cfg(use_hyper)]
-impl<T> WithHttpSignature<T> for HyperRequest
-where
-    T: Read,
-{
-    fn with_http_signature(
-        &mut self,
-        key_id: String,
-        key: T,
-        algorithm: SignatureAlgorithm,
-    ) -> &mut Self {
-        use hyper::header::Authorization;
-
-        self.headers_mut().set(Authorization(
-            self.authorization_header(key_id, key, algorithm),
-        ));
-
-        self
-    }
-}
-
-#[cfg(use_reqwest)]
-impl<T> AsHttpSignature<T> for ReqwestRequest
-where
-    T: Read,
-{
-    fn as_http_signature(
-        &self,
-        key_id: String,
-        key: T,
-        algorithm: SignatureAlgorithm,
-    ) -> HttpSignature<T> {
-        let headers = if let Some(ref request) = self.request {
-            let mut headers = HashMap::new();
-            headers.insert(
-                "(request-target)".into(),
-                vec![
-                    if let Some(ref query) = request.uri().query() {
-                        format!(
-                            "{} {}?{}",
-                            request.method().as_ref().to_lowercase(),
-                            request.uri().path(),
-                            query
-                        )
-                    } else {
-                        format!(
-                            "{} {}",
-                            request.method().as_ref().to_lowercase(),
-                            request.uri().path()
-                        )
-                    },
-                ],
-            );
-
-            request.headers.iter().fold(headers, |acc, header_view| {
-                acc.entry(header_view.name().into())
-                    .or_insert(Vec::new())
-                    .push(header_view.value_string())
-            })
-        } else {
-            HashMap::new()
-        };
-
-        HttpSignature {
-            key_id,
-            key,
-            algorithm,
-            headers,
-        }
-    }
-}
-
-#[cfg(use_reqwest)]
-impl<T> WithHttpSignature<T> for ReqwestRequest
-where
-    T: Read,
-{
-    fn with_http_signature(
-        &mut self,
-        key_id: String,
-        key: T,
-        algorithm: SignatureAlgorithm,
-    ) -> &mut Self {
-        use reqwest::header::Authorization;
-
-        self.headers_mut().set(Authorization(
-            self.authorization_header(key_id, key, algorithm),
-        ));
-
-        self
-    }
 }
 
 pub struct SigningString<T> {

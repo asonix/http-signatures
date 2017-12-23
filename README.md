@@ -32,7 +32,7 @@ req.headers_mut().set(ContentType::json());
 req.headers_mut().set(ContentLength(json.len() as u64));
 
 // Add the HTTP Signature
-req.with_http_signature(key_id.into(), private_key, SignatureAlgorithm::RSA(ShaSize::FiveTwelve));
+req.with_http_signature(key_id.into(), private_key, SignatureAlgorithm::RSA(ShaSize::FiveTwelve))?;
 
 req.set_body(json);
 
@@ -64,10 +64,11 @@ let key_id = "some-username-or-something".into();
 let private_key = File.open("some-public-key.der")?;
 
 let client = Client::new();
-let res = client.post("https://example.com")
+let req = client.post("https://example.com")
     .body("Some Body")
-    .with_http_signature(key_id, private_key, SignatureAlgorithm::RSA(ShaSize::FiveTwelve))
-    .send()?;
+    .with_http_signature(key_id, private_key, SignatureAlgorithm::RSA(ShaSize::FiveTwelve))?;
+
+client::execute(req)?;
 ```
 
 ### License
