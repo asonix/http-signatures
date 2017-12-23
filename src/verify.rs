@@ -31,6 +31,50 @@ const ALGORITHM: &'static str = "algorithm";
 const DATE: &'static str = "date";
 const SIGNATURE: &'static str = "signature";
 
+/// The GetKey trait is used during HTTP Signature verification to access the required decryption
+/// key based on a given key_id.
+///
+/// The `key_id` is provided in the Authorization header of the request as `KeyId`.
+///
+/// ### Example
+/// ```rust
+/// # use std::io::Cursor;
+/// # use std::collections::HashMap;
+/// use http_signatures::GetKey;
+///
+/// struct MyKeyGetter {
+///     keys: HashMap<String, Vec<u8>>,
+/// }
+///
+/// impl MyKeyGetter {
+///     pub fn new() -> Self {
+///         MyKeyGetter {
+///             keys: HashMap::new(),
+///         }
+///     }
+///
+///     pub fn add_key(&mut self, key_id: String, key: Vec<u8>) {
+///         self.keys.insert(key_id, key);
+///     }
+/// }
+///
+/// impl GetKey for MyKeyGetter {
+///     type Key = Cursor<Vec<u8>>;
+///     type Error = ();
+///
+///     fn get_key(self, key_id: &str) -> Result<Self::Key, Self::Error> {
+///         self.keys.get(key_id).map(|key| Cursor::new(key.clone())).ok_or(())
+///     }
+/// }
+///
+/// # fn run() -> Result<(), ()> {
+/// let mut key_getter = MyKeyGetter::new();
+/// key_getter.add_key("key-1".into(), vec![1, 2, 3, 4, 5]);
+///
+/// key_getter.get_key("key-1")?;
+/// # Ok(())
+/// # }
+/// ```
 pub trait GetKey {
     type Key: Read;
     type Error;
@@ -38,6 +82,13 @@ pub trait GetKey {
     fn get_key(self, key_id: &str) -> Result<Self::Key, Self::Error>;
 }
 
+/// The `VerifyAuthorizationHeader` trait is meant to be implemented for the request types from
+/// http libraries (such as Hyper and Rocket). This trait makes verifying requests much easier,
+/// since the `verify_authorization_header()` method can be called directly on a Request type.
+///
+/// For examples, see the
+/// [hyper server](https://github.com/asonix/http-signatures/blob/master/examples/hyper_server.rs)
+/// and [rocket](https://github.com/asonix/http-signatures/blob/master/examples/rocket.rs) files.
 pub trait VerifyAuthorizationHeader {
     fn verify_authorization_header<G: GetKey>(
         &self,
@@ -45,6 +96,13 @@ pub trait VerifyAuthorizationHeader {
     ) -> Result<(), VerificationError>;
 }
 
+/// The `AuthorizationHeader` struct is the direct reasult of reading in the Authorization header
+/// from a given request.
+///
+/// It contains the keys to the request's headers in the correct order for recreating the signing
+/// string, the algorithm used to create the signature, and the signature itself.
+///
+/// It also contains the key_id, which will be handled by a type implementing `GetKey`.
 pub struct AuthorizationHeader<'a> {
     key_id: &'a str,
     header_keys: Vec<&'a str>,
@@ -53,10 +111,12 @@ pub struct AuthorizationHeader<'a> {
 }
 
 impl<'a> AuthorizationHeader<'a> {
+    /// Try to create an `AuthorizationHeader` from a given String.
     pub fn new(s: &'a str) -> Result<Self, DecodeError> {
         s.try_into()
     }
 
+    /// Try to verify the current `AuthorizationHeader`.
     pub fn verify<G>(
         self,
         headers: &[(&str, &str)],
@@ -68,7 +128,7 @@ impl<'a> AuthorizationHeader<'a> {
     where
         G: GetKey,
     {
-        let vah: CheckAuthorizationHeader = CheckAuthorizationHeader {
+        let vah = CheckAuthorizationHeader {
             auth_header: self,
             headers: headers,
             method: method,
@@ -133,7 +193,7 @@ impl<'a> TryFrom<&'a str> for AuthorizationHeader<'a> {
     }
 }
 
-pub struct CheckAuthorizationHeader<'a> {
+struct CheckAuthorizationHeader<'a> {
     auth_header: AuthorizationHeader<'a>,
     headers: &'a [(&'a str, &'a str)],
     method: &'a str,

@@ -22,6 +22,10 @@ use create::{AsHttpSignature, WithHttpSignature, HttpSignature};
 
 use hyper::Request as HyperRequest;
 
+/// An implementation of `AsHttpSignature` for `hyper::Request`.
+///
+/// This trait is not often used directly, but is required by the `WithHttpSignature` trait defined
+/// below.
 impl<T> AsHttpSignature<T> for HyperRequest
 where
     T: Read,
@@ -61,10 +65,17 @@ where
             acc
         });
 
-        HttpSignature::new(key_id, key, algorithm, headers)
+        HttpSignature::new(key_id, key, algorithm, headers).map_err(Error::from)
     }
 }
 
+/// An implementation of `WithHttpSignature` for `hyper::Request`
+///
+/// This automatically adds an Authorization header to a given `hyper::Request` struct containing
+/// an HTTP Signature.
+///
+/// See [https://github.com/asonix/http-signatures/blob/master/examples/hyper_client.rs](this
+/// example) for usage information.
 impl<T> WithHttpSignature<T> for HyperRequest
 where
     T: Read,

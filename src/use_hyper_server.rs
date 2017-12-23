@@ -19,6 +19,12 @@ use hyper::server::Request;
 use verify::{AuthorizationHeader, VerifyAuthorizationHeader, GetKey};
 use error::VerificationError;
 
+/// Implements `VerifyAuthorizationHeader` for `hyper::server::Request`.
+///
+/// This allows easy verification of incomming requests in Hyper.
+///
+/// See [https://github.com/asonix/http-signatures/blob/master/examples/hyper_server.rs](this
+/// example) for usage information.
 impl VerifyAuthorizationHeader for Request {
     fn verify_authorization_header<G: GetKey>(
         &self,

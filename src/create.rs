@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
+//! This module defines types and traits for creating HTTP Signatures.
+
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
@@ -23,12 +25,16 @@ use base64::encode;
 use untrusted::Input;
 
 use super::{SignatureAlgorithm, ShaSize};
-use error::Error;
+use error::{Error, CreationError};
 
+/// `AsHttpSignature` defines a trait for getting an Authorization Header string from any type that
+/// implements it. It provides two methods: as_http_signature, which implementors must define, and
+/// authorization_header, which uses as_http_signature to create the header string.
 pub trait AsHttpSignature<T>
 where
     T: Read,
 {
+    /// Gets an `HttpSignature` struct from an immutably borrowed Self
     fn as_http_signature(
         &self,
         key_id: String,
@@ -36,20 +42,20 @@ where
         algorithm: SignatureAlgorithm,
     ) -> Result<HttpSignature<T>, Error>;
 
+    /// Generates the Authorization Header from an immutably borrowed Self
     fn authorization_header(
         &self,
         key_id: String,
         key: T,
         algorithm: SignatureAlgorithm,
     ) -> Result<String, Error> {
-        let signing_string: SigningString<T> = self.as_http_signature(key_id, key, algorithm)?
-            .into();
-        let signature: Signature = signing_string.try_into()?;
-
-        Ok(signature.authorization())
+        Ok(self.as_http_signature(key_id, key, algorithm)?
+            .authorization_header()?)
     }
 }
 
+/// `WithHttpSignature` defines a trait for adding an Authorization header to another library's
+/// request or response object.
 pub trait WithHttpSignature<T>: AsHttpSignature<T>
 where
     T: Read,
@@ -62,22 +68,58 @@ where
     ) -> Result<&mut Self, Error>;
 }
 
-pub struct HttpSignature<T> {
+/// The `HttpSignature` struct, this is the entry point for creating an Authorization header. It
+/// contains all the values required for generation.
+pub struct HttpSignature<T>
+where
+    T: Read,
+{
+    /// The keyId field in the Authorization header
     key_id: String,
+    /// The key (implementing `Read`) used to sign the request
     key: T,
+    /// The algorithm used to sign the request
     algorithm: SignatureAlgorithm,
+    /// The headers that will be included in the signature
     headers: HashMap<String, Vec<String>>,
 }
 
-impl<T> HttpSignature<T> {
+impl<T> HttpSignature<T>
+where
+    T: Read,
+{
+    /// Create a new HttpSignature from its components.
+    ///
+    /// This method will Error if `headers` is empty.
+    ///
+    /// ### Example
+    /// ```rust
+    /// # use std::fs::File;
+    /// # use std::collections::HashMap;
+    /// # use http_signatures::Error;
+    /// use http_signatures::{HttpSignature, SignatureAlgorithm, ShaSize, REQUEST_TARGET};
+    ///
+    /// # fn run() -> Result<(), Error> {
+    /// let key_id = "test/assets/public.der".into();
+    /// let priv_key = File::open("test/assets/private.der")?;
+    ///
+    /// let alg = SignatureAlgorithm::RSA(ShaSize::FiveTwelve);
+    ///
+    /// let mut headers = HashMap::new();
+    /// headers.insert(REQUEST_TARGET.into(), vec!["get /".into()]);
+    ///
+    /// let http_sig = HttpSignature::new(key_id, priv_key, alg, headers)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(
         key_id: String,
         key: T,
         algorithm: SignatureAlgorithm,
         headers: HashMap<String, Vec<String>>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, CreationError> {
         if headers.is_empty() {
-            return Err(Error::NoHeaders);
+            return Err(CreationError::NoHeaders);
         }
 
         Ok(HttpSignature {
@@ -99,17 +141,76 @@ impl<T> HttpSignature<T> {
     pub fn headers(&self) -> &HashMap<String, Vec<String>> {
         &self.headers
     }
+
+    /// Generate the Authorization Header from the `HttpSignature`
+    ///
+    /// This method errors if signing the signing-string fails.
+    ///
+    /// ### Example
+    /// ```rust
+    /// # use std::fs::File;
+    /// # use std::collections::HashMap;
+    /// # use http_signatures::{Error, SignatureAlgorithm, ShaSize, REQUEST_TARGET};
+    /// use http_signatures::HttpSignature;
+    /// # fn run() -> Result<(), Error> {
+    /// # let key_id = "test/assets/public.der".into();
+    /// # let priv_key = File::open("test/assets/private.der")?;
+    /// # let alg = SignatureAlgorithm::RSA(ShaSize::FiveTwelve);
+    /// # let mut headers = HashMap::new();
+    /// # headers.insert(REQUEST_TARGET.into(), vec!["get /".into()]);
+    /// # let http_signature = HttpSignature::new(key_id, priv_key, alg, headers)?;
+    ///
+    /// let auth_header = http_signature.authorization_header()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn authorization_header(self) -> Result<String, CreationError> {
+        let signing_string: SigningString<T> = self.into();
+        let signature: Signature = signing_string.try_into()?;
+
+        Ok(signature.authorization())
+    }
 }
 
+/// A default implementation of `AsHttpSignature` for `HttpSignature`.
+///
+/// This only works if type `T` is `Clone` in addition to `Read`, which is normally required. This
+/// implementation doesn't serve much of a purpose.
+impl<T> AsHttpSignature<T> for HttpSignature<T>
+where
+    T: Read + Clone,
+{
+    fn as_http_signature(&self, _: String, _: T, _: SignatureAlgorithm) -> Result<Self, Error> {
+        Ok(HttpSignature {
+            key_id: self.key_id.clone(),
+            key: self.key.clone(),
+            algorithm: self.algorithm.clone(),
+            headers: self.headers.clone(),
+        })
+    }
+}
+
+/// The `SigningString<T>` struct uses what was given in the `HttpSignature` struct, but also has a
+/// plaintext field called `signing_string` which holds the string used to sign the request.
+///
+/// Since `From<HttpSignature<T>>` was implemented for `SigningString<T>`, the transition is as
+/// simple as calling `http_signature.into()`.
+///
+/// This struct does not have public fields, and does not have a constructor since it should only
+/// be used as an intermediate point from `HttpSignature<T>` to the signed string.
 pub struct SigningString<T> {
     key_id: String,
     key: T,
     headers: Vec<String>,
     algorithm: SignatureAlgorithm,
+    // The plaintext string used to sign the request
     signing_string: String,
 }
 
-impl<T> From<HttpSignature<T>> for SigningString<T> {
+impl<T> From<HttpSignature<T>> for SigningString<T>
+where
+    T: Read,
+{
     fn from(http_signature: HttpSignature<T>) -> Self {
         let (header_keys, signing_vec): (Vec<_>, Vec<_>) = http_signature
             .headers
@@ -132,6 +233,11 @@ impl<T> From<HttpSignature<T>> for SigningString<T> {
     }
 }
 
+/// `Signature` is the result of using the `key: T` of `SigningString<T>` to sign the
+/// `signing_string`.
+///
+/// To get the Authorization Header String from the Signature, the `authorization` method is
+/// provided.
 pub struct Signature {
     sig: String,
     key_id: String,
@@ -140,6 +246,7 @@ pub struct Signature {
 }
 
 impl Signature {
+    /// Get the Authorization Header String.
     pub fn authorization(self) -> String {
         let alg: &str = self.algorithm.into();
 
@@ -151,7 +258,7 @@ impl Signature {
         )
     }
 
-    fn rsa<T>(mut key: T, size: &ShaSize, signing_string: &[u8]) -> Result<String, Error>
+    fn rsa<T>(mut key: T, size: &ShaSize, signing_string: &[u8]) -> Result<String, CreationError>
     where
         T: Read,
     {
@@ -161,14 +268,14 @@ impl Signature {
 
         let key_pair = signature::RSAKeyPair::from_der(private_key_der).map_err(
             |_| {
-                Error::BadPrivateKey
+                CreationError::BadPrivateKey
             },
         )?;
         let key_pair = Arc::new(key_pair);
 
-        let mut signing_state = signature::RSASigningState::new(key_pair).map_err(
-            |_| Error::Unknown,
-        )?;
+        let mut signing_state = signature::RSASigningState::new(key_pair).map_err(|_| {
+            CreationError::SigningError
+        })?;
 
         let rng = rand::SystemRandom::new();
         let mut signature = vec![0; signing_state.key_pair().public_modulus_len()];
@@ -183,12 +290,12 @@ impl Signature {
                 signing_string,
                 signature.as_mut_slice(),
             )
-            .map_err(|_| Error::SigningError)?;
+            .map_err(|_| CreationError::SigningError)?;
 
         Ok(encode(signature.as_slice()))
     }
 
-    fn hmac<T>(mut key: T, size: &ShaSize, signing_string: &[u8]) -> Result<String, Error>
+    fn hmac<T>(mut key: T, size: &ShaSize, signing_string: &[u8]) -> Result<String, CreationError>
     where
         T: Read,
     {
@@ -212,8 +319,10 @@ impl<T> TryFrom<SigningString<T>> for Signature
 where
     T: Read,
 {
-    type Error = Error;
+    type Error = CreationError;
 
+    /// Attempt to sign the signing_string. If signing fails, a `Signature` will not be created and
+    /// an `Error` will be returned.
     fn try_from(signing_string: SigningString<T>) -> Result<Self, Self::Error> {
         Ok(match signing_string.algorithm {
             SignatureAlgorithm::RSA(size) => {

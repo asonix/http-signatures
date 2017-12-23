@@ -72,6 +72,7 @@ relay                   | 0.1.0          | MIT OR Apache-2.0
 reqwest                 | 0.8.2          | Apache-2.0, MIT
 ring                    | 0.11.0         | Specified in license file
 rocket                  | 0.3.5          | Apache-2.0, MIT
+rocket_codegen          | 0.3.5          | Apache-2.0, MIT
 safemem                 | 0.2.0          | MIT OR Apache-2.0
 schannel                | 0.1.9          | MIT
 scoped-tls              | 0.1.0          | Apache-2.0, MIT

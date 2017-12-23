@@ -13,8 +13,112 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
+//! HTTP Signatures, an implementation of [the http signatures specification](https://tools.ietf.org/html/draft-cavage-http-signatures-09)
+//!
+//! The base crate provides types for creating and verifying signatures, and the features
+//! `use_hyper`, `use_reqwest`, and `use_rocket` provide implementations of required traits for
+//! easily using HTTP Signatures with web applications.
+//!
+//! # Creating an HTTP Signature
+//!
+//! To get a string that would be the contents of an HTTP Request's Authorization header, a few
+//! steps must be taken. The method, path, and query must be known, furthermore, there must be at
+//! least one item in the headers hashmap, if there is not, the HTTP Signature creation will fail.
+//!
+//! ```rust
+//! use http_signatures::{HttpSignature, SignatureAlgorithm, ShaSize};
+//! use http_signatures::REQUEST_TARGET;
+//! # use http_signatures::Error;
+//! # use std::fs::File;
+//! # use std::collections::HashMap;
+//! # fn run() -> Result<(), Error> {
+//! # let priv_key = File::open("test/assets/private.der")?;
+//!
+//! let method = "GET";
+//! let path = "/test";
+//! let query = "key=value";
+//!
+//! let mut headers: HashMap<String, Vec<String>> = HashMap::new();
+//! headers.insert("Accept".into(), vec!["application/json".into()]);
+//! headers.insert(
+//!     REQUEST_TARGET.into(),
+//!     vec![format!("{} {}?{}", method.to_lowercase(), path, query)],
+//! );
+//!
+//! let algorithm = SignatureAlgorithm::RSA(ShaSize::FiveTwelve);
+//! let key_id = "1".into();
+//!
+//! let auth_header = HttpSignature::new(key_id, priv_key, algorithm, headers)?
+//!     .authorization_header()?;
+//!
+//! println!("Authorization: {}", auth_header);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Verifying an HTTP Signature
+//!
+//! To verify a header, one must implement a type called `GetKey`. This type is imporant because it
+//! contains the information required to convert a key id, represented as &str, into a Key. This
+//! can be done by accessing some external state, or by storing the required state in the struct
+//! that implements GetKey.
+//!
+//! ```rust
+//! # use http_signatures::{HttpSignature, SignatureAlgorithm, ShaSize};
+//! # use http_signatures::REQUEST_TARGET;
+//! # use http_signatures::Error;
+//! use http_signatures::{GetKey, AuthorizationHeader};
+//! # use std::fs::File;
+//! # use std::collections::HashMap;
+//! # fn some_auth_header() -> Result<String, Error> {
+//! # let priv_key = File::open("test/assets/private.der")?;
+//! # let method = "GET";
+//! # let path = "/test";
+//! # let query = "key=value";
+//! # let mut headers: HashMap<String, Vec<String>> = HashMap::new();
+//! # headers.insert("Accept".into(), vec!["application/json".into()]);
+//! # headers.insert(
+//! #     REQUEST_TARGET.into(),
+//! #     vec![format!("{} {}?{}", method.to_lowercase(), path, query)],
+//! # );
+//! # let algorithm = SignatureAlgorithm::RSA(ShaSize::FiveTwelve);
+//! # let key_id = "1".into();
+//! # let auth_header = HttpSignature::new(key_id, priv_key, algorithm, headers)?
+//! #   .authorization_header()?;
+//! # Ok(auth_header)
+//! # }
+//!
+//! struct MyKeyGetter;
+//!
+//! impl GetKey for MyKeyGetter {
+//!     type Key = File;
+//!     type Error = Error;
+//!
+//!     fn get_key(self, _key_id: &str) -> Result<Self::Key, Self::Error> {
+//!         File::open("test/assets/public.der").map_err(Error::from)
+//!     }
+//! }
+//! # fn run() -> Result<(), Error> {
+//! # let auth_header = some_auth_header()?;
+//!
+//! let mut headers = Vec::new();
+//! headers.push(("Accept".into(), "application/json".into()));
+//!
+//! let method = "GET";
+//! let path = "/test";
+//! let query = "key=value";
+//!
+//! let key_getter = MyKeyGetter;
+//!
+//! let auth_header = AuthorizationHeader::new(&auth_header)?;
+//! auth_header
+//!     .verify(&headers, method, path, Some(query), key_getter)?;
+//!
+//! # Ok(())
+//! # }
+//! ```
+
 #![feature(try_from)]
-#![feature(underscore_lifetimes)]
 
 #[cfg(feature = "use_hyper")]
 extern crate hyper;
@@ -41,25 +145,41 @@ mod create;
 mod verify;
 mod error;
 
-pub use create::{AsHttpSignature, WithHttpSignature, HttpSignature, SigningString};
+use error::DecodeError;
+
+pub use create::{AsHttpSignature, WithHttpSignature, HttpSignature};
 pub use verify::{AuthorizationHeader, VerifyAuthorizationHeader, GetKey};
-pub use error::{Error, DecodeError, VerificationError};
+pub use error::Error;
 
-const REQUEST_TARGET: &'static str = "(request-target)";
+pub const REQUEST_TARGET: &'static str = "(request-target)";
 
-#[derive(Debug)]
+/// Variations of the Sha hashing function.
+///
+/// This stuct is used to tell the RSA and HMAC signature functions how big the sha hash should be.
+/// It currently offers three variations.
+#[derive(Debug, Clone)]
 pub enum ShaSize {
+    /// SHA256
     TwoFiftySix,
+    /// SHA384
     ThreeEightyFour,
+    /// SHA512
     FiveTwelve,
 }
 
-#[derive(Debug)]
+/// Which algorithm should be used to create an HTTP header.
+///
+/// This library uses Ring 0.11.0 for creating and verifying hashes, so this determines whether the
+/// library will use Ring's RSA Signatures or Rings's HMAC signatures.
+#[derive(Debug, Clone)]
 pub enum SignatureAlgorithm {
+    /// RSA
     RSA(ShaSize),
+    /// HMAC
     HMAC(ShaSize),
 }
 
+/// Convert an &str into a SignatureAlgorithm
 impl<'a> TryFrom<&'a str> for SignatureAlgorithm {
     type Error = DecodeError;
 
@@ -76,6 +196,7 @@ impl<'a> TryFrom<&'a str> for SignatureAlgorithm {
     }
 }
 
+/// Convert a SignatureAlgorithm into an &str
 impl From<SignatureAlgorithm> for &'static str {
     fn from(alg: SignatureAlgorithm) -> Self {
         match alg {
@@ -102,7 +223,6 @@ mod tests {
     use ring::{digest, hmac, rand};
 
     use std::collections::HashMap;
-    use std::convert::TryInto;
     use std::io::Cursor;
     use std::fs::File;
 
@@ -110,11 +230,9 @@ mod tests {
     use super::ShaSize;
     use super::REQUEST_TARGET;
     use create::HttpSignature;
-    use create::SigningString;
     use verify::GetKey;
     use verify::AuthorizationHeader;
     use error::VerificationError;
-    use create::Signature;
 
     struct HmacKeyGetter {
         key: Vec<u8>,
@@ -201,13 +319,11 @@ mod tests {
         let algorithm = SignatureAlgorithm::HMAC(sha_size);
         let key_id = "1".into();
 
-        let http_sig = HttpSignature::new(key_id, Cursor::new(key_vec), algorithm, headers_one)
+        let auth_header = HttpSignature::new(key_id, Cursor::new(key_vec), algorithm, headers_one)
+            .unwrap()
+            .authorization_header()
             .unwrap();
 
-        let signing_string: SigningString<_> = http_sig.into();
-        let signature: Signature = signing_string.try_into().unwrap();
-
-        let auth_header = signature.authorization();
         let auth_header = AuthorizationHeader::new(&auth_header).unwrap();
 
         auth_header
@@ -238,12 +354,11 @@ mod tests {
         let algorithm = SignatureAlgorithm::RSA(sha_size);
         let key_id = "1".into();
 
-        let http_sig = HttpSignature::new(key_id, priv_key, algorithm, headers_one).unwrap();
+        let auth_header = HttpSignature::new(key_id, priv_key, algorithm, headers_one)
+            .unwrap()
+            .authorization_header()
+            .unwrap();
 
-        let signing_string: SigningString<_> = http_sig.into();
-        let signature: Signature = signing_string.try_into().unwrap();
-
-        let auth_header = signature.authorization();
         let auth_header = AuthorizationHeader::new(&auth_header).unwrap();
 
         auth_header

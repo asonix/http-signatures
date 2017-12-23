@@ -1,7 +1,7 @@
 [package]
 name = "http-signatures"
 description = "An implementation of the HTTP Signatures RFC"
-version = "0.1.0"
+version = "0.1.1"
 license = "GPL-3.0"
 authors = ["Riley Trautman <riley.trautman@gmail.com>"]
 repository = "https://github.com/asonix/http-signatures"

@@ -18,6 +18,13 @@ use rocket::Request;
 use verify::{AuthorizationHeader, VerifyAuthorizationHeader, GetKey};
 use error::VerificationError;
 
+/// Implements `VerifyAuthorizationHeader` for `rocket::Request`.
+///
+/// This allows easy verification of incomming requests in Rocket, and can be used with Request
+/// guards.
+///
+/// See [https://github.com/asonix/http-signatures/blob/master/examples/rocket.rs](this
+/// example) for usage information.
 impl<'r> VerifyAuthorizationHeader for Request<'r> {
     fn verify_authorization_header<G: GetKey>(
         &self,

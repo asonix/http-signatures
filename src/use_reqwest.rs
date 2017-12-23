@@ -22,6 +22,10 @@ use create::{AsHttpSignature, WithHttpSignature, HttpSignature};
 
 use reqwest::Request as ReqwestRequest;
 
+/// An implementation of `AsHttpSignature` for `reqwest::Request`.
+///
+/// This trait is not often used directly, but is required by the `WithHttpSignature` trait defined
+/// below.
 impl<T> AsHttpSignature<T> for ReqwestRequest
 where
     T: Read,
@@ -61,10 +65,17 @@ where
             acc
         });
 
-        HttpSignature::new(key_id, key, algorithm, headers)
+        HttpSignature::new(key_id, key, algorithm, headers).map_err(Error::from)
     }
 }
 
+/// An implementation of `WithHttpSignature` for `reqwest::Request`
+///
+/// This automatically adds an Authorization header to a given `reqwest::Request` struct containing
+/// an HTTP Signature.
+///
+/// See [https://github.com/asonix/http-signatures/blob/master/examples/reqwest.rs](this
+/// example) for usage information.
 impl<T> WithHttpSignature<T> for ReqwestRequest
 where
     T: Read,
