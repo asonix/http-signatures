@@ -32,6 +32,13 @@ pub trait GetKey {
     fn get_key(self, key_id: String) -> Result<Self::Key, Self::Error>;
 }
 
+pub trait VerifyAuthorizationHeader {
+    fn verify_authorization_header<G: GetKey>(
+        &self,
+        key_getter: G,
+    ) -> Result<(), VerificationError>;
+}
+
 pub struct AuthorizationHeader {
     key_id: String,
     header_keys: Vec<String>,
@@ -49,13 +56,13 @@ impl AuthorizationHeader {
         headers: &[(String, String)],
         method: &str,
         path: &str,
-        query: &str,
+        query: Option<&str>,
         key_getter: G,
     ) -> Result<(), VerificationError>
     where
         G: GetKey,
     {
-        let vah: VerifyAuthorizationHeader = VerifyAuthorizationHeader {
+        let vah: CheckAuthorizationHeader = CheckAuthorizationHeader {
             auth_header: self,
             headers: headers,
             method: method,
@@ -107,14 +114,14 @@ impl TryFrom<String> for AuthorizationHeader {
                              .trim_right_matches("\""))
             .try_into()?;
 
-        let signature = decode(
-            key_value
-                .get("signature")
-                .ok_or(DecodeError::MissingKey("signature"))?
-                .trim_left_matches("\"")
-                .trim_right_matches("\"")
-                .into(),
-        ).map_err(|_| DecodeError::NotBase64)?;
+        let sig_string: String = key_value
+            .get("signature")
+            .ok_or(DecodeError::MissingKey("signature"))?
+            .trim_left_matches("\"")
+            .trim_right_matches("\"")
+            .into();
+
+        let signature = decode(&sig_string).map_err(|_| DecodeError::NotBase64)?;
 
         Ok(AuthorizationHeader {
             key_id,
@@ -125,15 +132,15 @@ impl TryFrom<String> for AuthorizationHeader {
     }
 }
 
-pub struct VerifyAuthorizationHeader<'a> {
+pub struct CheckAuthorizationHeader<'a> {
     auth_header: AuthorizationHeader,
     headers: &'a [(String, String)],
     method: &'a str,
     path: &'a str,
-    query: &'a str,
+    query: Option<&'a str>,
 }
 
-impl<'a> VerifyAuthorizationHeader<'a> {
+impl<'a> CheckAuthorizationHeader<'a> {
     pub fn verify<G>(self, key_getter: G) -> Result<(), VerificationError>
     where
         G: GetKey,
@@ -159,12 +166,20 @@ impl<'a> VerifyAuthorizationHeader<'a> {
 
         headers.insert(
             "(request-target)".into(),
-            format!(
-                "{} {}?{}",
-                self.method.to_lowercase(),
-                self.path,
-                self.query
-            ),
+            if let Some(ref query) = self.query {
+                format!(
+                    "{} {}?{}",
+                    self.method.to_lowercase(),
+                    self.path,
+                    query,
+                )
+            } else {
+                format!(
+                    "{} {}",
+                    self.method.to_lowercase(),
+                    self.path,
+                )
+            },
         );
 
         let signing_string = self.auth_header

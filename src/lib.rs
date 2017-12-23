@@ -17,10 +17,10 @@
 
 #[cfg(feature = "use_hyper")]
 extern crate hyper;
-
 #[cfg(feature = "use_reqwest")]
 extern crate reqwest;
-
+#[cfg(feature = "use_rocket")]
+extern crate rocket;
 extern crate ring;
 extern crate untrusted;
 extern crate base64;
@@ -28,16 +28,20 @@ extern crate base64;
 use std::convert::TryFrom;
 
 #[cfg(feature = "use_hyper")]
-mod use_hyper;
+mod use_hyper_client;
+#[cfg(feature = "use_hyper")]
+mod use_hyper_server;
 #[cfg(feature = "use_reqwest")]
 mod use_reqwest;
+#[cfg(feature = "use_rocket")]
+mod use_rocket;
 
 mod create;
 mod verify;
 mod error;
 
 pub use create::{AsHttpSignature, WithHttpSignature, HttpSignature, SigningString};
-pub use verify::AuthorizationHeader;
+pub use verify::{AuthorizationHeader, VerifyAuthorizationHeader, GetKey};
 pub use error::{Error, DecodeError, VerificationError};
 
 #[derive(Debug)]
@@ -101,12 +105,12 @@ mod tests {
 
     use super::HttpSignature;
     use super::SignatureAlgorithm;
-    use super::Signature;
     use super::SigningString;
     use super::GetKey;
     use super::AuthorizationHeader;
     use super::ShaSize;
     use super::VerificationError;
+    use create::Signature;
 
     struct HmacKeyGetter {
         key: Vec<u8>,
@@ -193,12 +197,7 @@ mod tests {
         let algorithm = SignatureAlgorithm::HMAC(sha_size);
         let key_id = "1".into();
 
-        let http_sig = HttpSignature {
-            key_id: key_id,
-            key: Cursor::new(key_vec),
-            algorithm: algorithm,
-            headers: headers_one,
-        };
+        let http_sig = HttpSignature::new(key_id, Cursor::new(key_vec), algorithm, headers_one);
 
         let signing_string: SigningString<_> = http_sig.into();
         let signature: Signature = signing_string.try_into().unwrap();
@@ -207,7 +206,7 @@ mod tests {
         let auth_header = AuthorizationHeader::new(auth_header).unwrap();
 
         auth_header
-            .verify(&headers_two, method, path, query, key_getter)
+            .verify(&headers_two, method, path, Some(query), key_getter)
             .unwrap();
     }
 
@@ -234,12 +233,7 @@ mod tests {
         let algorithm = SignatureAlgorithm::RSA(sha_size);
         let key_id = "1".into();
 
-        let http_sig = HttpSignature {
-            key_id: key_id,
-            key: priv_key,
-            algorithm: algorithm,
-            headers: headers_one,
-        };
+        let http_sig = HttpSignature::new(key_id, priv_key, algorithm, headers_one);
 
         let signing_string: SigningString<_> = http_sig.into();
         let signature: Signature = signing_string.try_into().unwrap();
@@ -248,7 +242,7 @@ mod tests {
         let auth_header = AuthorizationHeader::new(auth_header).unwrap();
 
         auth_header
-            .verify(&headers_two, method, path, query, key_getter)
+            .verify(&headers_two, method, path, Some(query), key_getter)
             .unwrap();
     }
 }

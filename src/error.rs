@@ -43,6 +43,7 @@ pub enum VerificationError {
     GetKey,
     ReadKey,
     BadSignature,
+    HeaderNotPresent,
     Unknown,
 }
 

@@ -1,6 +1,6 @@
 # HTTP Signatures
 
-This crate is used to create and verify HTTP Signatures, defined [here](https://tools.ietf.org/html/draft-cavage-http-signatures-09). It has support for Hyper and Reqwest types, although currently these adapters have not been tested. In the future, I plan on supporting Rocket's request guards, and possibly an Iron middleware for verification.
+This crate is used to create and verify HTTP Signatures, defined [here](https://tools.ietf.org/html/draft-cavage-http-signatures-09). It has support for Hyper, Rocket, and Reqwest types, although currently these adapters have not been tested. In the future, I might also support Iron middleware for verification.
 
 ### Usage
 #### With Hyper
@@ -10,8 +10,8 @@ Add this to your `Cargo.toml`
 version = "0.1"
 features = ["use_hyper"]
 ```
-In your code, use it when building a request as follows.
-
+##### Client
+Use it when building a request as follows.
 ```rust
 extern crate hyper;
 extern crate tokio_core;
@@ -44,6 +44,72 @@ let post = client.request(req).and_then(|res| {
 
 core.run(post);
 ```
+##### Server
+This is a very basic example server outline that should give you a general idea of how to set up a Hyper server that verifies HTTP Signatures. This is not meant to be code that actually works.
+```rust
+extern crate hyper;
+extern crate futures;
+extern crate http_signatures;
+
+use futures::future::Future;
+
+use hyper::header::ContentLength;
+use hyper::server::{Http, Request, Response, Service};
+use http_signatures::{GetKey, VerifyAuthorizationHeader};
+
+#[derive(Clone)]
+struct MyKeyGetter {
+    key: std::fs::File;
+}
+
+impl MyKeyGetter {
+    fn new(filename: &str) -> Result<Self, ..> {
+        MyKeyGetter {
+            key: std::fs::File::open(filename)?,
+        }
+    }
+}
+
+impl GetKey for MyKeyGetter {
+    type Key = std::fs::File;
+    type Error = ..;
+
+    fn get_key(self, _key_id: String) -> Result<Self::Key, Self::Error> {
+        Ok(self.key)
+    }
+}
+
+struct HelloWorld {
+    key_getter: MyKeyGetter,
+};
+
+impl HelloWorld {
+    fn new(filename: &str) -> Result<Self, ..> {
+        HelloWorld {
+            key_getter: MyKeyGetter::new(filename)?,
+        }
+    }
+}
+
+impl Service for HelloWorld {
+    type Request = Request;
+    type Response = ..;
+    type Error = ..;
+
+    type Future = ..;
+
+    fn call(&self, req: Request) -> Self::Future {
+        req.verify_authorization_header(self.key_getter.clone())?;
+        ...
+    }
+}
+
+fn main() {
+    let addr = ..;
+    let server = Http::new().bind(&addr, || Ok(HelloWorld::new("some-keyfile").unwrap())).unwrap();
+    server.run().unwrap();
+}
+```
 #### With Reqwest
 Add this to your `Cargo.toml`
 ```toml
@@ -69,6 +135,45 @@ let req = client.post("https://example.com")
     .with_http_signature(key_id, private_key, SignatureAlgorithm::RSA(ShaSize::FiveTwelve))?;
 
 client::execute(req)?;
+```
+#### With Rocket
+Add this to your `Cargo.toml`
+```toml
+[dependencies.http-signatures]
+version = "0.1"
+features = ["use_rocket"]
+```
+In your code, use it in a route like so
+```rust
+use http_signatures::{GetKey, VerifyAuthorizationHeader};
+
+struct MyKeyGetter {
+    key: std::fs::File;
+}
+
+impl MyKeyGetter {
+    fn new(filename: &str) -> Result<Self, ..> {
+        MyKeyGetter {
+            key: std::fs::File::open(filename)?,
+        }
+    }
+}
+
+impl GetKey for MyKeyGetter {
+    type Key = std::fs::File;
+    type Error = ..;
+
+    fn get_key(self, _key_id: String) -> Result<Self::Key, Self::Error> {
+        Ok(self.key)
+    }
+}
+
+#[get("/some-endpoint")]
+fn endpoint(req: Request) -> Result<String, ..> {
+    req.verify_authorization_header(MyKeyGetter::new("some-key-file")?)?;
+    ...
+}
+
 ```
 
 ### License
