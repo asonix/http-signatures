@@ -15,43 +15,58 @@
 
 use rocket::Request;
 
-use verify::{AuthorizationHeader, VerifyAuthorizationHeader, GetKey};
+use verify::{SignedHeader, VerifyHeader, GetKey};
 use error::VerificationError;
 
-/// Implements `VerifyAuthorizationHeader` for `rocket::Request`.
+/// Implements `VerifyHeader` for `rocket::Request`.
 ///
 /// This allows easy verification of incomming requests in Rocket, and can be used with Request
 /// guards.
 ///
 /// See [https://github.com/asonix/http-signatures/blob/master/examples/rocket.rs](this
 /// example) for usage information.
-impl<'r> VerifyAuthorizationHeader for Request<'r> {
+impl<'r> VerifyHeader for Request<'r> {
+    fn verify_signature_header<G: GetKey>(&self, key_getter: G) -> Result<(), VerificationError> {
+        verify_header(self, "Signature", key_getter)
+    }
+
     fn verify_authorization_header<G: GetKey>(
         &self,
         key_getter: G,
     ) -> Result<(), VerificationError> {
-        let auth_header = self.headers().get_one("Authorization").ok_or(
-            VerificationError::HeaderNotPresent,
-        )?;
-
-        let auth_header = AuthorizationHeader::new(auth_header)?;
-
-        let headers: Vec<(String, String)> = self.headers()
-            .iter()
-            .map(|header| (header.name().into(), header.value().into()))
-            .collect();
-
-        let headers_borrowed: Vec<(&str, &str)> = headers
-            .iter()
-            .map(|&(ref key, ref val)| (key.as_ref(), val.as_ref()))
-            .collect();
-
-        auth_header.verify(
-            headers_borrowed.as_ref(),
-            self.method().as_str(),
-            self.uri().path(),
-            self.uri().query(),
-            key_getter,
-        )
+        verify_header(self, "Authorization", key_getter)
     }
+}
+
+fn verify_header<'r, G>(
+    req: &Request<'r>,
+    header: &str,
+    key_getter: G,
+) -> Result<(), VerificationError>
+where
+    G: GetKey,
+{
+    let auth_header = req.headers().get_one(header).ok_or(
+        VerificationError::HeaderNotPresent,
+    )?;
+
+    let auth_header = SignedHeader::new(auth_header)?;
+
+    let headers: Vec<(String, String)> = req.headers()
+        .iter()
+        .map(|header| (header.name().into(), header.value().into()))
+        .collect();
+
+    let headers_borrowed: Vec<(&str, &str)> = headers
+        .iter()
+        .map(|&(ref key, ref val)| (key.as_ref(), val.as_ref()))
+        .collect();
+
+    auth_header.verify(
+        headers_borrowed.as_ref(),
+        req.method().as_str(),
+        req.uri().path(),
+        req.uri().query(),
+        key_getter,
+    )
 }

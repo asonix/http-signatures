@@ -16,6 +16,7 @@
 //! This module defines the Error types for http_signatures.
 
 use std::io::Error as IoError;
+use std::str::Utf8Error;
 
 /// The root Error
 #[derive(Debug)]
@@ -91,6 +92,8 @@ pub enum VerificationError {
     Decode(DecodeError),
     /// Headers present in the `headers` field are missing from the request
     MissingHeaders(String),
+    /// Problems reading headers
+    Utf8(Utf8Error),
     /// When the `get_key` method from the `GetKey` type fails
     GetKey,
     /// Problems reading the required keys
@@ -101,6 +104,12 @@ pub enum VerificationError {
     HeaderNotPresent,
     /// When we're not sure what went wrong
     Unknown,
+}
+
+impl From<Utf8Error> for VerificationError {
+    fn from(e: Utf8Error) -> Self {
+        VerificationError::Utf8(e)
+    }
 }
 
 impl From<DecodeError> for VerificationError {

@@ -28,7 +28,7 @@ fn main() {
     let client = Client::new();
     let mut req = client.get("http://localhost:8000").build().unwrap();
 
-    req.with_http_signature(
+    req.with_authorization_header(
         key_id,
         private_key,
         SignatureAlgorithm::RSA(ShaSize::FiveTwelve),

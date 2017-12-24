@@ -40,7 +40,7 @@ fn main() {
     req.set_body(json);
 
     // Add the HTTP Signature
-    req.with_http_signature(
+    req.with_signature_header(
         key_id.into(),
         private_key,
         SignatureAlgorithm::RSA(ShaSize::FiveTwelve),

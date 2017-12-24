@@ -80,7 +80,7 @@ impl<T> WithHttpSignature<T> for ReqwestRequest
 where
     T: Read,
 {
-    fn with_http_signature(
+    fn with_authorization_header(
         &mut self,
         key_id: String,
         key: T,
@@ -90,6 +90,18 @@ where
 
         let auth_header = self.authorization_header(key_id, key, algorithm)?;
         self.headers_mut().set(Authorization(auth_header));
+
+        Ok(self)
+    }
+
+    fn with_signature_header(
+        &mut self,
+        key_id: String,
+        key: T,
+        algorithm: SignatureAlgorithm,
+    ) -> Result<&mut Self, Error> {
+        let sig_header = self.signature_header(key_id, key, algorithm)?;
+        self.headers_mut().set_raw("Signature", sig_header);
 
         Ok(self)
     }

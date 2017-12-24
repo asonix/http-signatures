@@ -5,7 +5,24 @@ This crate is used to create and verify HTTP Signatures, defined [here](https://
 [crates.io](https://crates.io/crates/http-signatures) [docs.rs](https://docs.rs/http-signatures/)
 
 ### Running the examples
-Since this crate is built to modularly require dependencies, running the examples is not as straightforward as for other projects. To run `hyper_server` and `hyper_client`, the proper commands are `cargo run --example hyper_server --features use_hyper` and `cargo run --example hyper_client --features use_hyper`. The hyper examples are configured to talk to eachother by default. The server runs on port 3000, and the client POSTs on port 3000. The rocket server (`cargo run --example rocket --features use_rocket`) runs on port 8000, and the reqwest client (`cargo run --example reqwest --features use_reqwest`) GETs on port 8000.
+Since this crate is built to modularly require dependencies, running the examples is not as straightforward as for other projects.  To run `hyper_server` and `hyper_client`, the proper commands are
+```bash
+cargo run --example hyper_server --features use_hyper
+```
+and
+```bash
+cargo run --example hyper_client --features use_hyper
+```
+The hyper examples are configured to talk to eachother by default. The server runs on port 3000, and the client POSTs on port 3000. They also use the `Signature` header to sign and verify the request.
+The rocket server
+```bash
+cargo run --example rocket --features use_rocket
+```
+runs on port 8000, and the reqwest client 
+```bash
+cargo run --example reqwest --features use_reqwest
+```
+GETs on port 8000. These examples use the `Authorization` header to sign and verify the request.
 
 ### Usage
 #### With Hyper
@@ -31,7 +48,7 @@ req.headers_mut().set(ContentLength(json.len() as u64));
 req.set_body(json);
 
 // Add the HTTP Signature
-req.with_http_signature(
+req.with_authorization_header(
     key_id.into(),
     private_key,
     SignatureAlgorithm::RSA(ShaSize::FiveTwelve),
@@ -134,7 +151,7 @@ let mut req = client
     .build()
     .unwrap();
 
-req.with_http_signature(
+req.with_authorization_header(
     key_id,
     private_key,
     SignatureAlgorithm::RSA(ShaSize::FiveTwelve),

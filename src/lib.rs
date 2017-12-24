@@ -67,7 +67,7 @@
 //! # use http_signatures::{HttpSignature, SignatureAlgorithm, ShaSize};
 //! # use http_signatures::REQUEST_TARGET;
 //! # use http_signatures::Error;
-//! use http_signatures::{GetKey, AuthorizationHeader};
+//! use http_signatures::{GetKey, SignedHeader};
 //! # use std::fs::File;
 //! # use std::collections::HashMap;
 //! # fn some_auth_header() -> Result<String, Error> {
@@ -110,7 +110,7 @@
 //!
 //! let key_getter = MyKeyGetter;
 //!
-//! let auth_header = AuthorizationHeader::new(&auth_header)?;
+//! let auth_header = SignedHeader::new(&auth_header)?;
 //! auth_header
 //!     .verify(&headers, method, path, Some(query), key_getter)?;
 //!
@@ -148,7 +148,7 @@ mod error;
 use error::DecodeError;
 
 pub use create::{AsHttpSignature, WithHttpSignature, HttpSignature};
-pub use verify::{AuthorizationHeader, VerifyAuthorizationHeader, GetKey};
+pub use verify::{SignedHeader, VerifyHeader, GetKey};
 pub use error::Error;
 
 pub const REQUEST_TARGET: &'static str = "(request-target)";
@@ -231,7 +231,7 @@ mod tests {
     use super::REQUEST_TARGET;
     use create::HttpSignature;
     use verify::GetKey;
-    use verify::AuthorizationHeader;
+    use verify::SignedHeader;
     use error::VerificationError;
 
     struct HmacKeyGetter {
@@ -324,7 +324,7 @@ mod tests {
             .authorization_header()
             .unwrap();
 
-        let auth_header = AuthorizationHeader::new(&auth_header).unwrap();
+        let auth_header = SignedHeader::new(&auth_header).unwrap();
 
         auth_header
             .verify(&headers_two, method, path, Some(query), key_getter)
@@ -356,10 +356,10 @@ mod tests {
 
         let auth_header = HttpSignature::new(key_id, priv_key, algorithm, headers_one)
             .unwrap()
-            .authorization_header()
+            .signature_header()
             .unwrap();
 
-        let auth_header = AuthorizationHeader::new(&auth_header).unwrap();
+        let auth_header = SignedHeader::new(&auth_header).unwrap();
 
         auth_header
             .verify(&headers_two, method, path, Some(query), key_getter)

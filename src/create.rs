@@ -27,9 +27,10 @@ use untrusted::Input;
 use super::{SignatureAlgorithm, ShaSize};
 use error::{Error, CreationError};
 
-/// `AsHttpSignature` defines a trait for getting an Authorization Header string from any type that
-/// implements it. It provides two methods: as_http_signature, which implementors must define, and
-/// authorization_header, which uses as_http_signature to create the header string.
+/// `AsHttpSignature` defines a trait for getting an Authorization or Signature Header string from
+/// any type that implements it. It provides three methods: as_http_signature, which implementors must
+/// define, and authorization_header and signature_header, which use as_http_signature to create the
+/// header string.
 pub trait AsHttpSignature<T>
 where
     T: Read,
@@ -52,15 +53,33 @@ where
         Ok(self.as_http_signature(key_id, key, algorithm)?
             .authorization_header()?)
     }
+
+    /// Generates the Signature Header from an immutably borrowed Self
+    fn signature_header(
+        &self,
+        key_id: String,
+        key: T,
+        algorithm: SignatureAlgorithm,
+    ) -> Result<String, Error> {
+        Ok(self.as_http_signature(key_id, key, algorithm)?
+            .signature_header()?)
+    }
 }
 
-/// `WithHttpSignature` defines a trait for adding an Authorization header to another library's
-/// request or response object.
+/// `WithHttpSignature` defines a trait for adding Authorization and Signature headers to another
+/// library's request or response object.
 pub trait WithHttpSignature<T>: AsHttpSignature<T>
 where
     T: Read,
 {
-    fn with_http_signature(
+    fn with_authorization_header(
+        &mut self,
+        key_id: String,
+        key: T,
+        algorithm: SignatureAlgorithm,
+    ) -> Result<&mut Self, Error>;
+
+    fn with_signature_header(
         &mut self,
         key_id: String,
         key: T,
@@ -68,13 +87,13 @@ where
     ) -> Result<&mut Self, Error>;
 }
 
-/// The `HttpSignature` struct, this is the entry point for creating an Authorization header. It
-/// contains all the values required for generation.
+/// The `HttpSignature` struct, this is the entry point for creating Authorization or Signature
+/// headers. It contains all the values required for generation.
 pub struct HttpSignature<T>
 where
     T: Read,
 {
-    /// The keyId field in the Authorization header
+    /// The keyId field in the header
     key_id: String,
     /// The key (implementing `Read`) used to sign the request
     key: T,
@@ -161,14 +180,44 @@ where
     /// # let http_signature = HttpSignature::new(key_id, priv_key, alg, headers)?;
     ///
     /// let auth_header = http_signature.authorization_header()?;
+    /// println!("Authorization: {}", auth_header);
     /// # Ok(())
     /// # }
     /// ```
     pub fn authorization_header(self) -> Result<String, CreationError> {
-        let signing_string: SigningString<T> = self.into();
-        let signature: Signature = signing_string.try_into()?;
+        Ok(self.signature()?.authorization())
+    }
 
-        Ok(signature.authorization())
+    /// Generate the Signature Header from the `HttpSignature`
+    ///
+    /// This method errors if signing the signing-string fails.
+    ///
+    /// ### Example
+    /// ```rust
+    /// # use std::fs::File;
+    /// # use std::collections::HashMap;
+    /// # use http_signatures::{Error, SignatureAlgorithm, ShaSize, REQUEST_TARGET};
+    /// use http_signatures::HttpSignature;
+    /// # fn run() -> Result<(), Error> {
+    /// # let key_id = "test/assets/public.der".into();
+    /// # let priv_key = File::open("test/assets/private.der")?;
+    /// # let alg = SignatureAlgorithm::RSA(ShaSize::FiveTwelve);
+    /// # let mut headers = HashMap::new();
+    /// # headers.insert(REQUEST_TARGET.into(), vec!["get /".into()]);
+    /// # let http_signature = HttpSignature::new(key_id, priv_key, alg, headers)?;
+    ///
+    /// let sig_header = http_signature.signature_header()?;
+    /// println!("Signature: {}", sig_header);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn signature_header(self) -> Result<String, CreationError> {
+        Ok(self.signature()?.signature())
+    }
+
+    pub fn signature(self) -> Result<Signature, CreationError> {
+        let signing_string: SigningString<T> = self.into();
+        signing_string.try_into()
     }
 }
 
@@ -236,8 +285,8 @@ where
 /// `Signature` is the result of using the `key: T` of `SigningString<T>` to sign the
 /// `signing_string`.
 ///
-/// To get the Authorization Header String from the Signature, the `authorization` method is
-/// provided.
+/// To get the Authorization or Signature Header String from the Signature, the `authorization`
+/// and `signature` methods are provided.
 pub struct Signature {
     sig: String,
     key_id: String,
@@ -248,9 +297,18 @@ pub struct Signature {
 impl Signature {
     /// Get the Authorization Header String.
     pub fn authorization(self) -> String {
+        format!("Signature {}", self.header())
+    }
+
+    /// Get the Signature Header String.
+    pub fn signature(self) -> String {
+        self.header()
+    }
+
+    fn header(self) -> String {
         let alg: &str = self.algorithm.into();
 
-        format!("Signature: keyId=\"{}\",algorithm=\"{}\",headers=\"{}\",signature=\"{}\"",
+        format!("Signature keyId=\"{}\",algorithm=\"{}\",headers=\"{}\",signature=\"{}\"",
                 self.key_id,
                 alg,
                 self.headers.join(" "),

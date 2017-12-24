@@ -25,7 +25,7 @@ use rocket::State;
 use rocket::Outcome::{Success, Failure};
 use rocket::request::{Request, FromRequest, Outcome};
 use rocket::http::Status;
-use http_signatures::{GetKey, VerifyAuthorizationHeader};
+use http_signatures::{GetKey, VerifyHeader};
 
 #[derive(Debug)]
 enum Error {

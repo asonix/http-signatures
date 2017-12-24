@@ -23,7 +23,7 @@ use futures::{Future, IntoFuture};
 
 use hyper::header::ContentLength;
 use hyper::server::{Http, Request, Response, Service};
-use http_signatures::{GetKey, VerifyAuthorizationHeader};
+use http_signatures::{GetKey, VerifyHeader};
 
 #[derive(Debug)]
 enum Error {
@@ -76,7 +76,7 @@ impl Service for HelloWorld {
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     fn call(&self, req: Request) -> Self::Future {
-        let verified = req.verify_authorization_header(self.key_getter.clone())
+        let verified = req.verify_signature_header(self.key_getter.clone())
             .map_err(|_| hyper::Error::Header);
 
         Box::new(verified.into_future().and_then(|_| {
