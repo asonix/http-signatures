@@ -106,3 +106,90 @@ where
         Ok(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use std::fs::File;
+    use std::convert::TryInto;
+
+    use reqwest::Client;
+    use reqwest::Request;
+    use reqwest::header::{ContentLength, ContentType, Date, Host, HttpDate};
+    use reqwest::header::Headers;
+
+    use ShaSize;
+    use SignatureAlgorithm;
+    use create::AsHttpSignature;
+    use create::SigningString;
+
+    /* Request used for all tests:
+     *
+     * POST /foo HTTP/1.1
+     * Host: example.org
+     * Date: Tue, 07 Jun 2014 20:51:35 GMT
+     * Content-Type: application/json
+     * Digest: SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=
+     * Content-Length: 18
+     *
+     * {"hello": "world"}
+     */
+
+    const KEY_ID: &'static str = "rsa-key-1";
+    const ALGORITHM: SignatureAlgorithm = SignatureAlgorithm::RSA(ShaSize::TwoFiftySix);
+    const PRIVATE_KEY_PATH: &'static str = "tests/assets/private.der";
+
+    #[test]
+    fn min_test() {
+        let uri = "http://example.org/foo";
+        let req = Client::new().post(uri).build().unwrap();
+
+        test_request(req, "(request-target): post /foo");
+    }
+
+    #[test]
+    fn full_test() {
+        let uri = "http://example.org/foo";
+
+        let mut headers = Headers::new();
+
+        headers.set(Host::new("example.org", None));
+        headers.set(ContentType::json());
+        headers.set_raw(
+            "Digest",
+            "SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=",
+        );
+        headers.set(Date(
+            HttpDate::from_str("Tue, 07 Jun 2014 20:51:35 GMT").unwrap(),
+        ));
+        headers.set(ContentLength(18));
+
+        let req = Client::new()
+            .post(uri)
+            .headers(headers)
+            .body(r#"{"hello": "world"}"#)
+            .build()
+            .unwrap();
+
+        test_request(
+            req,
+            "(request-target): post /foo
+content-length: 18
+content-type: application/json
+date: Tue, 07 Jun 2014 20:51:35 GMT
+digest: SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=
+host: example.org",
+        )
+    }
+
+    fn test_request(req: Request, s: &str) {
+        let key = File::open(PRIVATE_KEY_PATH).unwrap();
+
+        let http_sig = req.as_http_signature(KEY_ID.into(), key, ALGORITHM)
+            .unwrap();
+
+        let signing_string: SigningString<File> = http_sig.try_into().unwrap();
+
+        assert_eq!(signing_string.signing_string, s);
+    }
+}
