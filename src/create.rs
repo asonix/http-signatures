@@ -15,7 +15,7 @@
 
 //! This module defines types and traits for creating HTTP Signatures.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 use std::io::Read;
@@ -89,6 +89,7 @@ where
 
 /// The `HttpSignature` struct, this is the entry point for creating Authorization or Signature
 /// headers. It contains all the values required for generation.
+#[derive(Clone, Debug)]
 pub struct HttpSignature<T>
 where
     T: Read,
@@ -100,7 +101,7 @@ where
     /// The algorithm used to sign the request
     algorithm: SignatureAlgorithm,
     /// The headers that will be included in the signature
-    headers: HashMap<String, Vec<String>>,
+    headers: BTreeMap<String, Vec<String>>,
 }
 
 impl<T> HttpSignature<T>
@@ -114,17 +115,17 @@ where
     /// ### Example
     /// ```rust
     /// # use std::fs::File;
-    /// # use std::collections::HashMap;
+    /// # use std::collections::BTreeMap;
     /// # use http_signatures::Error;
     /// use http_signatures::{HttpSignature, SignatureAlgorithm, ShaSize, REQUEST_TARGET};
     ///
     /// # fn run() -> Result<(), Error> {
-    /// let key_id = "test/assets/public.der".into();
-    /// let priv_key = File::open("test/assets/private.der")?;
+    /// let key_id = "tests/assets/public.der".into();
+    /// let priv_key = File::open("tests/assets/private.der")?;
     ///
     /// let alg = SignatureAlgorithm::RSA(ShaSize::FiveTwelve);
     ///
-    /// let mut headers = HashMap::new();
+    /// let mut headers = BTreeMap::new();
     /// headers.insert(REQUEST_TARGET.into(), vec!["get /".into()]);
     ///
     /// let http_sig = HttpSignature::new(key_id, priv_key, alg, headers)?;
@@ -135,7 +136,7 @@ where
         key_id: String,
         key: T,
         algorithm: SignatureAlgorithm,
-        headers: HashMap<String, Vec<String>>,
+        headers: BTreeMap<String, Vec<String>>,
     ) -> Result<Self, CreationError> {
         if headers.is_empty() {
             return Err(CreationError::NoHeaders);
@@ -157,7 +158,7 @@ where
         &self.algorithm
     }
 
-    pub fn headers(&self) -> &HashMap<String, Vec<String>> {
+    pub fn headers(&self) -> &BTreeMap<String, Vec<String>> {
         &self.headers
     }
 
@@ -168,14 +169,14 @@ where
     /// ### Example
     /// ```rust
     /// # use std::fs::File;
-    /// # use std::collections::HashMap;
+    /// # use std::collections::BTreeMap;
     /// # use http_signatures::{Error, SignatureAlgorithm, ShaSize, REQUEST_TARGET};
     /// use http_signatures::HttpSignature;
     /// # fn run() -> Result<(), Error> {
-    /// # let key_id = "test/assets/public.der".into();
-    /// # let priv_key = File::open("test/assets/private.der")?;
+    /// # let key_id = "tests/assets/public.der".into();
+    /// # let priv_key = File::open("tests/assets/private.der")?;
     /// # let alg = SignatureAlgorithm::RSA(ShaSize::FiveTwelve);
-    /// # let mut headers = HashMap::new();
+    /// # let mut headers = BTreeMap::new();
     /// # headers.insert(REQUEST_TARGET.into(), vec!["get /".into()]);
     /// # let http_signature = HttpSignature::new(key_id, priv_key, alg, headers)?;
     ///
@@ -195,14 +196,14 @@ where
     /// ### Example
     /// ```rust
     /// # use std::fs::File;
-    /// # use std::collections::HashMap;
+    /// # use std::collections::BTreeMap;
     /// # use http_signatures::{Error, SignatureAlgorithm, ShaSize, REQUEST_TARGET};
     /// use http_signatures::HttpSignature;
     /// # fn run() -> Result<(), Error> {
-    /// # let key_id = "test/assets/public.der".into();
-    /// # let priv_key = File::open("test/assets/private.der")?;
+    /// # let key_id = "tests/assets/public.der".into();
+    /// # let priv_key = File::open("tests/assets/private.der")?;
     /// # let alg = SignatureAlgorithm::RSA(ShaSize::FiveTwelve);
-    /// # let mut headers = HashMap::new();
+    /// # let mut headers = BTreeMap::new();
     /// # headers.insert(REQUEST_TARGET.into(), vec!["get /".into()]);
     /// # let http_signature = HttpSignature::new(key_id, priv_key, alg, headers)?;
     ///
@@ -247,13 +248,14 @@ where
 ///
 /// This struct does not have public fields, and does not have a constructor since it should only
 /// be used as an intermediate point from `HttpSignature<T>` to the signed string.
+#[derive(Clone, Debug)]
 pub struct SigningString<T> {
     key_id: String,
     key: T,
     headers: Vec<String>,
     algorithm: SignatureAlgorithm,
     // The plaintext string used to sign the request
-    signing_string: String,
+    pub signing_string: String,
 }
 
 impl<T> From<HttpSignature<T>> for SigningString<T>
@@ -287,6 +289,7 @@ where
 ///
 /// To get the Authorization or Signature Header String from the Signature, the `authorization`
 /// and `signature` methods are provided.
+#[derive(Clone, Debug)]
 pub struct Signature {
     sig: String,
     key_id: String,

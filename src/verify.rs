@@ -106,6 +106,7 @@ pub trait VerifyHeader {
 /// string, the algorithm used to create the signature, and the signature itself.
 ///
 /// It also contains the key_id, which will be handled by a type implementing `GetKey`.
+#[derive(Debug)]
 pub struct SignedHeader<'a> {
     key_id: &'a str,
     header_keys: Vec<&'a str>,
@@ -196,6 +197,7 @@ impl<'a> TryFrom<&'a str> for SignedHeader<'a> {
     }
 }
 
+#[derive(Debug)]
 struct CheckSignedHeader<'a> {
     auth_header: SignedHeader<'a>,
     headers: &'a [(&'a str, &'a str)],

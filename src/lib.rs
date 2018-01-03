@@ -30,15 +30,15 @@
 //! use http_signatures::REQUEST_TARGET;
 //! # use http_signatures::Error;
 //! # use std::fs::File;
-//! # use std::collections::HashMap;
+//! # use std::collections::BTreeMap;
 //! # fn run() -> Result<(), Error> {
-//! # let priv_key = File::open("test/assets/private.der")?;
+//! # let priv_key = File::open("tests/assets/private.der")?;
 //!
 //! let method = "GET";
 //! let path = "/test";
 //! let query = "key=value";
 //!
-//! let mut headers: HashMap<String, Vec<String>> = HashMap::new();
+//! let mut headers: BTreeMap<String, Vec<String>> = BTreeMap::new();
 //! headers.insert("Accept".into(), vec!["application/json".into()]);
 //! headers.insert(
 //!     REQUEST_TARGET.into(),
@@ -69,13 +69,13 @@
 //! # use http_signatures::Error;
 //! use http_signatures::{GetKey, SignedHeader};
 //! # use std::fs::File;
-//! # use std::collections::HashMap;
+//! # use std::collections::BTreeMap;
 //! # fn some_auth_header() -> Result<String, Error> {
-//! # let priv_key = File::open("test/assets/private.der")?;
+//! # let priv_key = File::open("tests/assets/private.der")?;
 //! # let method = "GET";
 //! # let path = "/test";
 //! # let query = "key=value";
-//! # let mut headers: HashMap<String, Vec<String>> = HashMap::new();
+//! # let mut headers: BTreeMap<String, Vec<String>> = BTreeMap::new();
 //! # headers.insert("Accept".into(), vec!["application/json".into()]);
 //! # headers.insert(
 //! #     REQUEST_TARGET.into(),
@@ -95,7 +95,7 @@
 //!     type Error = Error;
 //!
 //!     fn get_key(self, _key_id: &str) -> Result<Self::Key, Self::Error> {
-//!         File::open("test/assets/public.der").map_err(Error::from)
+//!         File::open("tests/assets/public.der").map_err(Error::from)
 //!     }
 //! }
 //! # fn run() -> Result<(), Error> {
@@ -222,7 +222,7 @@ impl From<SignatureAlgorithm> for &'static str {
 mod tests {
     use ring::{digest, hmac, rand};
 
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use std::io::Cursor;
     use std::fs::File;
 
@@ -306,7 +306,7 @@ mod tests {
         let path = "/test";
         let query = "key=value";
 
-        let mut headers_one: HashMap<String, Vec<String>> = HashMap::new();
+        let mut headers_one: BTreeMap<String, Vec<String>> = BTreeMap::new();
         headers_one.insert("Accept".into(), vec!["application/json".into()]);
         headers_one.insert(
             REQUEST_TARGET.into(),
@@ -332,8 +332,8 @@ mod tests {
     }
 
     fn rsa_can_sign_and_verify(sha_size: ShaSize) {
-        let priv_key = File::open("test/assets/private.der").unwrap();
-        let pub_key = File::open("test/assets/public.der").unwrap();
+        let priv_key = File::open("tests/assets/private.der").unwrap();
+        let pub_key = File::open("tests/assets/public.der").unwrap();
 
         let key_getter = RsaKeyGetter { key: pub_key };
 
@@ -341,7 +341,7 @@ mod tests {
         let path = "/test";
         let query = "key=value";
 
-        let mut headers_one: HashMap<String, Vec<String>> = HashMap::new();
+        let mut headers_one: BTreeMap<String, Vec<String>> = BTreeMap::new();
         headers_one.insert("Accept".into(), vec!["application/json".into()]);
         headers_one.insert(
             REQUEST_TARGET.into(),

@@ -14,7 +14,7 @@
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
 use std::io::Read;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use error::Error;
 use super::{SignatureAlgorithm, REQUEST_TARGET};
@@ -36,7 +36,7 @@ where
         key: T,
         algorithm: SignatureAlgorithm,
     ) -> Result<HttpSignature<T>, Error> {
-        let mut headers = HashMap::new();
+        let mut headers = BTreeMap::new();
         headers.insert(
             REQUEST_TARGET.into(),
             vec![
