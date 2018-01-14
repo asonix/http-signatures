@@ -13,6 +13,42 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
+//! This module defines `AsHttpSignature` and `WithHttpSignature` for `reqwest::Request`.
+//!
+//! # Example adding a signature to a request
+//!
+//! This example adds the HTTP Signature to the request directly as an Authorization header.
+//! `with_signature_header` can be used to add the signature as a Signature header instead.
+//!
+//! ```rust
+//! # extern crate reqwest;
+//! # extern crate http_signatures;
+//! #
+//! # use std::error::Error;
+//! # use std::fs::File;
+//! #
+//! # use http_signatures::{WithHttpSignature, ShaSize, SignatureAlgorithm};
+//! # use reqwest::Client;
+//! #
+//! # fn run() -> Result<(), Box<Error>> {
+//! let key = File::open("tests/assets/private.der")?;
+//! let alg = SignatureAlgorithm::RSA(ShaSize::TwoFiftySix);
+//!
+//! let client = Client::new();
+//! let mut req = client.get("https://example.com").build()?;
+//!
+//! req.with_authorization_header("rsa-key-1".into(), key, alg)?;
+//! #     Ok(())
+//! # }
+//! # fn main() {
+//! #     run().unwrap();
+//! # }
+//! ```
+//!
+//! See
+//! [this example](https://github.com/asonix/http-signatures/blob/master/examples/reqwest.rs)
+//! for more usage information.
+
 use std::io::Read;
 use std::collections::BTreeMap;
 
@@ -22,10 +58,6 @@ use create::{AsHttpSignature, WithHttpSignature, HttpSignature};
 
 use reqwest::Request as ReqwestRequest;
 
-/// An implementation of `AsHttpSignature` for `reqwest::Request`.
-///
-/// This trait is not often used directly, but is required by the `WithHttpSignature` trait defined
-/// below.
 impl<T> AsHttpSignature<T> for ReqwestRequest
 where
     T: Read,
@@ -69,13 +101,6 @@ where
     }
 }
 
-/// An implementation of `WithHttpSignature` for `reqwest::Request`
-///
-/// This automatically adds an Authorization header to a given `reqwest::Request` struct containing
-/// an HTTP Signature.
-///
-/// See [https://github.com/asonix/http-signatures/blob/master/examples/reqwest.rs](this
-/// example) for usage information.
 impl<T> WithHttpSignature<T> for ReqwestRequest
 where
     T: Read,

@@ -13,18 +13,20 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
+//! This module defines `VerifyHeader` for `rocket::Request`.
+//!
+//! This allows easy verification of incomming requests in Rocket, and can be used with Request
+//! guards.
+//!
+//! See
+//! [this example](https://github.com/asonix/http-signatures/blob/master/examples/rocket.rs)
+//! for usage information.
+
 use rocket::Request;
 
 use verify::{SignedHeader, VerifyHeader, GetKey};
 use error::VerificationError;
 
-/// Implements `VerifyHeader` for `rocket::Request`.
-///
-/// This allows easy verification of incomming requests in Rocket, and can be used with Request
-/// guards.
-///
-/// See [https://github.com/asonix/http-signatures/blob/master/examples/rocket.rs](this
-/// example) for usage information.
 impl<'r> VerifyHeader for Request<'r> {
     fn verify_signature_header<G: GetKey>(&self, key_getter: G) -> Result<(), VerificationError> {
         verify_header(self, "Signature", key_getter)

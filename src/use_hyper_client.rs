@@ -13,6 +13,74 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
+//! This modulde defines the `AsHttpSignature` and `WithHttpSignature` traits for `hyper::Request`.
+//!
+//! This is useful for interacting with HTTP Signatures from Hyper-based applications, since it can
+//! automatically generate signatures and add them to requests.
+//!
+//! # Example generating a signature
+//! This example shows getting an `HttpSignature` type from a `hyper::Request`. Typically you
+//! wouldn't want to do this directly, you'd use `with_authorization_header` or
+//! `with_signature_header` directly, but in the event you want the intermediate state, this is
+//! available.
+//!
+//! ```rust
+//! # #![feature(try_from)]
+//! # extern crate hyper;
+//! # extern crate http_signatures;
+//! #
+//! # use std::convert::TryInto;
+//! # use std::error::Error;
+//! # use std::fs::File;
+//! #
+//! # use http_signatures::{AsHttpSignature, ShaSize, SignatureAlgorithm};
+//! # use hyper::{Method, Request};
+//! #
+//! # fn run() -> Result<(), Box<Error>> {
+//! let key = File::open("tests/assets/private.der")?;
+//! let uri = "https://example.com".parse()?;
+//! let alg = SignatureAlgorithm::RSA(ShaSize::TwoFiftySix);
+//!
+//! let req: Request = Request::new(Method::Post, uri);
+//!
+//! let http_sig = req.as_http_signature("rsa-key-1".into(), key, alg)?;
+//! #     Ok(())
+//! # }
+//! # fn main() {
+//! #     run().unwrap();
+//! # }
+//! ```
+//!
+//! # Example adding a signature to a Request type
+//!
+//! This example adds the HTTP Signature to the request directly as an Authorization header.
+//! `with_signature_header` can be used to add the signature as a Signature header instead.
+//!
+//! ```rust
+//! # extern crate hyper;
+//! # extern crate http_signatures;
+//! #
+//! # use std::error::Error;
+//! # use std::fs::File;
+//! #
+//! # use http_signatures::{WithHttpSignature, ShaSize, SignatureAlgorithm};
+//! # use hyper::{Method, Request};
+//! #
+//! # fn run() -> Result<(), Box<Error>> {
+//! let key = File::open("tests/assets/private.der")?;
+//! let uri = "https://example.com".parse()?;
+//! let alg = SignatureAlgorithm::RSA(ShaSize::TwoFiftySix);
+//!
+//! let mut req: Request = Request::new(Method::Post, uri);
+//!
+//! req.with_authorization_header("rsa-key-1".into(), key, alg)?;
+//! #     Ok(())
+//! # }
+//! # fn main() {
+//! #     run().unwrap();
+//! # }
+//! ```
+
 use std::io::Read;
 use std::collections::BTreeMap;
 

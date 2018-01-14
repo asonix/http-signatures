@@ -133,13 +133,13 @@ extern crate base64;
 use std::convert::TryFrom;
 
 #[cfg(feature = "use_hyper")]
-mod use_hyper_client;
+pub mod use_hyper_client;
 #[cfg(feature = "use_hyper")]
-mod use_hyper_server;
+pub mod use_hyper_server;
 #[cfg(feature = "use_reqwest")]
-mod use_reqwest;
+pub mod use_reqwest;
 #[cfg(feature = "use_rocket")]
-mod use_rocket;
+pub mod use_rocket;
 
 mod create;
 mod verify;

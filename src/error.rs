@@ -15,6 +15,8 @@
 
 //! This module defines the Error types for http_signatures.
 
+use std::error::Error as StdError;
+use std::fmt;
 use std::io::Error as IoError;
 use std::str::Utf8Error;
 
@@ -27,8 +29,6 @@ pub enum Error {
     Verification(VerificationError),
     /// Problems creating a signature
     Creation(CreationError),
-    /// Unknown error occurred
-    Unknown,
 }
 
 impl From<IoError> for Error {
@@ -55,6 +55,34 @@ impl From<CreationError> for Error {
     }
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Error::IO(ref ie) => write!(f, "{}", ie),
+            Error::Verification(ref ve) => write!(f, "{}", ve),
+            Error::Creation(ref ce) => write!(f, "{}", ce),
+        }
+    }
+}
+
+impl StdError for Error {
+    fn description(&self) -> &str {
+        match *self {
+            Error::IO(ref ie) => ie.description(),
+            Error::Verification(ref ve) => ve.description(),
+            Error::Creation(ref ce) => ce.description(),
+        }
+    }
+
+    fn cause(&self) -> Option<&StdError> {
+        match *self {
+            Error::IO(ref ie) => Some(ie),
+            Error::Verification(ref ve) => Some(ve),
+            Error::Creation(ref ce) => Some(ce),
+        }
+    }
+}
+
 /// When creating a signature doesn't work
 #[derive(Debug)]
 pub enum CreationError {
@@ -74,8 +102,35 @@ impl From<IoError> for CreationError {
     }
 }
 
+impl fmt::Display for CreationError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            CreationError::IO(ref io) => write!(f, "{}, {}", self.description(), io),
+            _ => write!(f, "{}", self.description()),
+        }
+    }
+}
+
+impl StdError for CreationError {
+    fn description(&self) -> &str {
+        match *self {
+            CreationError::IO(_) => "Signature creation: Error reading keys",
+            CreationError::NoHeaders => "Signature creation: Must provide at least one header",
+            CreationError::SigningError => "Signature creation: Error signing",
+            CreationError::BadPrivateKey => "Signature creation: Provided private key is invalid",
+        }
+    }
+
+    fn cause(&self) -> Option<&StdError> {
+        match *self {
+            CreationError::IO(ref ie) => Some(ie),
+            _ => None,
+        }
+    }
+}
+
 /// When decoding a signature doesn't work
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum DecodeError {
     /// A required key is missing
     MissingKey(&'static str),
@@ -85,8 +140,34 @@ pub enum DecodeError {
     NotBase64,
 }
 
+impl fmt::Display for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            DecodeError::MissingKey(ref mk) => write!(f, "Missing key: {}", mk),
+            DecodeError::InvalidAlgorithm(ref ia) => write!(f, "Invalid Algorithm: {}", ia),
+            _ => write!(f, "{}", self.description()),
+        }
+    }
+}
+
+impl StdError for DecodeError {
+    fn description(&self) -> &str {
+        match *self {
+            DecodeError::MissingKey(_) => "Decoding: Missing key",
+            DecodeError::InvalidAlgorithm(_) => "Decoding: Provided algorithm is not supported",
+            DecodeError::NotBase64 => "Decoding: Provided signature is not base64 encoded",
+        }
+    }
+
+    fn cause(&self) -> Option<&StdError> {
+        match *self {
+            _ => None,
+        }
+    }
+}
+
 /// When a request cannot be verified
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum VerificationError {
     /// Issues decoding a signature
     Decode(DecodeError),
@@ -102,8 +183,6 @@ pub enum VerificationError {
     BadSignature,
     /// When the Authorization header is missing
     HeaderNotPresent,
-    /// When we're not sure what went wrong
-    Unknown,
 }
 
 impl From<Utf8Error> for VerificationError {
@@ -115,5 +194,38 @@ impl From<Utf8Error> for VerificationError {
 impl From<DecodeError> for VerificationError {
     fn from(d: DecodeError) -> Self {
         VerificationError::Decode(d)
+    }
+}
+
+impl fmt::Display for VerificationError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            VerificationError::Decode(ref de) => write!(f, "Verification: {}", de),
+            VerificationError::MissingHeaders(ref mh) => write!(f, "{}, {}", self.description(), mh),
+            VerificationError::Utf8(ref ue) => write!(f, "Verification: reading headers: {}", ue),
+            _ => write!(f, "{}", self.description()),
+        }
+    }
+}
+
+impl StdError for VerificationError {
+    fn description(&self) -> &str {
+        match *self {
+            VerificationError::Decode(ref de) => de.description(),
+            VerificationError::MissingHeaders(_) => "Verification: Headers provided in headers field are not present in the request",
+            VerificationError::Utf8(ref ue) => ue.description(),
+            VerificationError::GetKey => "Verification: Error getting key",
+            VerificationError::ReadKey => "Verification: Error reading key",
+            VerificationError::BadSignature => "Verification: Bad signature",
+            VerificationError::HeaderNotPresent => "Verification: Header missing",
+        }
+    }
+
+    fn cause(&self) -> Option<&StdError> {
+        match *self {
+            VerificationError::Decode(ref de) => Some(de),
+            VerificationError::Utf8(ref ue) => Some(ue),
+            _ => None,
+        }
     }
 }
