@@ -13,7 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
-//! This module defines `VerifyHeader` for `rocket::Request`.
+//! Available with the `use_rocket` feature. This module defines `VerifyHeader` for
+//! `rocket::Request`.
 //!
 //! This allows easy verification of incomming requests in Rocket, and can be used with Request
 //! guards.

@@ -13,7 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
-//! This modulde defines the `AsHttpSignature` and `WithHttpSignature` traits for `hyper::Request`.
+//! Available with the `use_hyper` feature. This modulde defines the `AsHttpSignature` and
+//! `WithHttpSignature` traits for `hyper::Request`.
 //!
 //! This is useful for interacting with HTTP Signatures from Hyper-based applications, since it can
 //! automatically generate signatures and add them to requests.
@@ -80,6 +81,10 @@
 //! #     run().unwrap();
 //! # }
 //! ```
+//!
+//! See
+//! [this example](https://github.com/asonix/http-signatures/blob/master/examples/hyper_client.rs)
+//! for more information.
 
 use std::io::Read;
 use std::collections::BTreeMap;

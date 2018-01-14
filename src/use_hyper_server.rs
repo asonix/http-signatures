@@ -13,7 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
-//! This module defines `VerifyHeader` for `hyper::server::Request`.
+//! Available with the `use_hyper` feature. This module defines `VerifyHeader` for
+//! `hyper::server::Request`.
 //!
 //! This allows easy verification of incomming requests in Hyper.
 //!

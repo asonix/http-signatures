@@ -13,7 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
-//! This module defines `AsHttpSignature` and `WithHttpSignature` for `reqwest::Request`.
+//! Available with the `use_reqwest` feature. This module defines `AsHttpSignature` and
+//! `WithHttpSignature` for `reqwest::Request`.
 //!
 //! # Example adding a signature to a request
 //!

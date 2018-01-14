@@ -94,7 +94,7 @@ fn main() {
     let addr = "127.0.0.1:3000".parse().unwrap();
     let server = Http::new()
         .bind(&addr, || {
-            Ok(HelloWorld::new("test/assets/public.der").unwrap())
+            Ok(HelloWorld::new("tests/assets/public.der").unwrap())
         })
         .unwrap();
     server.run().unwrap();
