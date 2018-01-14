@@ -9,7 +9,7 @@ readme = "README.md"
 keywords = ["web", "http", "signatures"]
 
 [features]
-default = []
+default = ["use_hyper", "use_reqwest", "use_rocket"]
 use_hyper = ["hyper", "futures", "tokio-core"]
 use_reqwest = ["reqwest"]
 use_rocket = ["rocket", "rocket_codegen"]

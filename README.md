@@ -30,6 +30,7 @@ Add this to your `Cargo.toml`
 ```toml
 [dependencies.http-signatures]
 version = "0.1"
+default-features = false
 features = ["use_hyper"]
 ```
 ##### Client
@@ -136,6 +137,7 @@ Add this to your `Cargo.toml`
 ```toml
 [dependencies.http-signatures]
 version = "0.1"
+default-features = false
 features = ["use_reqwest"]
 ```
 In your code, use it when building a request as follows.
@@ -164,6 +166,7 @@ Add this to your `Cargo.toml`
 ```toml
 [dependencies.http-signatures]
 version = "0.1"
+default-features = false
 features = ["use_rocket"]
 ```
 In your code, use it in a route like so
@@ -233,9 +236,6 @@ fn main() {
         .launch();
 }
 ```
-
-### Testing
-Since examples could have tests, they get compiled during a `cargo test`. Be sure to run `cargo test --all-features`.
 
 ### Contributing
 Please be aware that all code contributed to this project will be licensed under the GPL version 3.
