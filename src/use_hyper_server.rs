@@ -13,6 +13,15 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
+//! Available with the `use_hyper` feature. This module defines `VerifyHeader` for
+//! `hyper::server::Request`.
+//!
+//! This allows easy verification of incomming requests in Hyper.
+//!
+//! See
+//! [this example](https://github.com/asonix/http-signatures/blob/master/examples/hyper_server.rs)
+//! for usage information.
+
 use std::str::from_utf8;
 
 use hyper::header::Authorization;
@@ -21,12 +30,6 @@ use hyper::server::Request;
 use verify::{SignedHeader, VerifyHeader, GetKey};
 use error::VerificationError;
 
-/// Implements `VerifyHeader` for `hyper::server::Request`.
-///
-/// This allows easy verification of incomming requests in Hyper.
-///
-/// See [https://github.com/asonix/http-signatures/blob/master/examples/hyper_server.rs](this
-/// example) for usage information.
 impl VerifyHeader for Request {
     fn verify_signature_header<G: GetKey>(&self, key_getter: G) -> Result<(), VerificationError> {
         let auth_header = self.headers()

@@ -28,7 +28,7 @@ use http_signatures::{WithHttpSignature, SignatureAlgorithm, ShaSize};
 
 fn main() {
     let key_id = "some-username-or-something";
-    let private_key = File::open("test/assets/private.der").unwrap();
+    let private_key = File::open("tests/assets/private.der").unwrap();
 
     let mut core = Core::new().unwrap();
     let client = Client::new(&core.handle());

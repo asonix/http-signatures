@@ -89,7 +89,7 @@ fn index(_verified: Verified) -> &'static str {
 }
 
 fn main() {
-    let key_getter = MyKeyGetter::new("test/assets/public.der").unwrap();
+    let key_getter = MyKeyGetter::new("tests/assets/public.der").unwrap();
 
     rocket::ignite()
         .mount("/", routes![index])
