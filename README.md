@@ -2,7 +2,7 @@
 
 This crate is used to create and verify HTTP Signatures, defined [here](https://tools.ietf.org/html/draft-cavage-http-signatures-09). It has support for Hyper, Rocket, and Reqwest types. In the future, I might also support Iron middleware for verification.
 
-[crates.io](https://crates.io/crates/http-signatures) [docs.rs](https://docs.rs/http-signatures/)
+[crates.io](https://crates.io/crates/http-signatures) [documentation](https://asonix.github.io/http-signatures/http_signatures/index.html)
 
 ### Running the examples
 Since this crate is built to modularly require dependencies, running the examples is not as straightforward as for other projects.  To run `hyper_server` and `hyper_client`, the proper commands are
