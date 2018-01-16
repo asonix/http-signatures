@@ -13,10 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
-extern crate hyper;
 extern crate futures;
-extern crate tokio_core;
 extern crate http_signatures;
+extern crate hyper;
+extern crate tokio_core;
 
 use std::fs::File;
 
@@ -24,7 +24,8 @@ use tokio_core::reactor::Core;
 use hyper::{Client, Method, Request};
 use hyper::header::{ContentLength, ContentType};
 use futures::{Future, Stream};
-use http_signatures::{WithHttpSignature, SignatureAlgorithm, ShaSize};
+use http_signatures::prelude::*;
+use http_signatures::{ShaSize, SignatureAlgorithm};
 
 fn main() {
     let key_id = "some-username-or-something";

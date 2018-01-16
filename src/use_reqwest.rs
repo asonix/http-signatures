@@ -28,7 +28,8 @@
 //! # use std::error::Error;
 //! # use std::fs::File;
 //! #
-//! # use http_signatures::{WithHttpSignature, ShaSize, SignatureAlgorithm};
+//! # use http_signatures::prelude::*;
+//! # use http_signatures::{ShaSize, SignatureAlgorithm};
 //! # use reqwest::Client;
 //! #
 //! # fn run() -> Result<(), Box<Error>> {
@@ -53,9 +54,10 @@
 use std::io::Read;
 use std::collections::BTreeMap;
 
+use create::HttpSignature;
 use error::Error;
+use prelude::*;
 use super::{SignatureAlgorithm, REQUEST_TARGET};
-use create::{AsHttpSignature, WithHttpSignature, HttpSignature};
 
 use reqwest::Request as ReqwestRequest;
 
@@ -73,7 +75,7 @@ where
         headers.insert(
             REQUEST_TARGET.into(),
             vec![
-                if let Some(ref query) = self.url().query() {
+                if let Some(query) = self.url().query() {
                     format!(
                         "{} {}?{}",
                         self.method().as_ref().to_lowercase(),
@@ -92,7 +94,7 @@ where
 
         let headers = self.headers().iter().fold(headers, |mut acc, header_view| {
             acc.entry(header_view.name().into())
-                .or_insert(Vec::new())
+                .or_insert_with(Vec::new)
                 .push(header_view.value_string());
 
             acc
@@ -135,19 +137,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use std::fs::File;
     use std::convert::TryInto;
+    use std::fs::File;
+    use std::str::FromStr;
 
-    use reqwest::Client;
-    use reqwest::Request;
-    use reqwest::header::{ContentLength, ContentType, Date, Host, HttpDate};
-    use reqwest::header::Headers;
+    use reqwest::{Client, Request};
+    use reqwest::header::{ContentLength, ContentType, Date, Headers, Host, HttpDate};
 
+    use create::SigningString;
+    use prelude::*;
     use ShaSize;
     use SignatureAlgorithm;
-    use create::AsHttpSignature;
-    use create::SigningString;
 
     /* Request used for all tests:
      *

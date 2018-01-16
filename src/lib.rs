@@ -61,13 +61,14 @@
 //! To verify a header, one must implement a type called `GetKey`. This type is imporant because it
 //! contains the information required to convert a key id, represented as &str, into a Key. This
 //! can be done by accessing some external state, or by storing the required state in the struct
-//! that implements GetKey.
+//! that implements `GetKey`.
 //!
 //! ```rust
 //! # use http_signatures::{HttpSignature, SignatureAlgorithm, ShaSize};
 //! # use http_signatures::REQUEST_TARGET;
 //! # use http_signatures::Error;
-//! use http_signatures::{GetKey, SignedHeader};
+//! use http_signatures::prelude::*;
+//! use http_signatures::SignedHeader;
 //! # use std::fs::File;
 //! # use std::collections::BTreeMap;
 //! # fn some_auth_header() -> Result<String, Error> {
@@ -120,17 +121,15 @@
 
 #![feature(try_from)]
 
+extern crate base64;
 #[cfg(feature = "use_hyper")]
 extern crate hyper;
 #[cfg(feature = "use_reqwest")]
 extern crate reqwest;
+extern crate ring;
 #[cfg(feature = "use_rocket")]
 extern crate rocket;
-extern crate ring;
 extern crate untrusted;
-extern crate base64;
-
-use std::convert::TryFrom;
 
 #[cfg(feature = "use_hyper")]
 pub mod use_hyper_client;
@@ -141,17 +140,20 @@ pub mod use_reqwest;
 #[cfg(feature = "use_rocket")]
 pub mod use_rocket;
 
+pub mod prelude;
 mod create;
 mod verify;
 mod error;
 
+use std::str::FromStr;
+
 use error::DecodeError;
 
-pub use create::{AsHttpSignature, WithHttpSignature, HttpSignature};
-pub use verify::{SignedHeader, VerifyHeader, GetKey};
+pub use create::HttpSignature;
 pub use error::Error;
+pub use verify::SignedHeader;
 
-pub const REQUEST_TARGET: &'static str = "(request-target)";
+pub const REQUEST_TARGET: &str = "(request-target)";
 
 /// Variations of the Sha hashing function.
 ///
@@ -179,11 +181,11 @@ pub enum SignatureAlgorithm {
     HMAC(ShaSize),
 }
 
-/// Convert an &str into a SignatureAlgorithm
-impl<'a> TryFrom<&'a str> for SignatureAlgorithm {
-    type Error = DecodeError;
+/// Convert an `&str` into a `SignatureAlgorithm`
+impl FromStr for SignatureAlgorithm {
+    type Err = DecodeError;
 
-    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "rsa-sha256" => Ok(SignatureAlgorithm::RSA(ShaSize::TwoFiftySix)),
             "rsa-sha384" => Ok(SignatureAlgorithm::RSA(ShaSize::ThreeEightyFour)),
@@ -196,24 +198,20 @@ impl<'a> TryFrom<&'a str> for SignatureAlgorithm {
     }
 }
 
-/// Convert a SignatureAlgorithm into an &str
+/// Convert a `SignatureAlgorithm` into an `&str`
 impl From<SignatureAlgorithm> for &'static str {
     fn from(alg: SignatureAlgorithm) -> Self {
         match alg {
-            SignatureAlgorithm::RSA(size) => {
-                match size {
-                    ShaSize::TwoFiftySix => "rsa-sha256",
-                    ShaSize::ThreeEightyFour => "rsa-sha384",
-                    ShaSize::FiveTwelve => "rsa-sha512",
-                }
-            }
-            SignatureAlgorithm::HMAC(size) => {
-                match size {
-                    ShaSize::TwoFiftySix => "hmac-sha256",
-                    ShaSize::ThreeEightyFour => "hmac-sha384",
-                    ShaSize::FiveTwelve => "hmac-sha512",
-                }
-            }
+            SignatureAlgorithm::RSA(size) => match size {
+                ShaSize::TwoFiftySix => "rsa-sha256",
+                ShaSize::ThreeEightyFour => "rsa-sha384",
+                ShaSize::FiveTwelve => "rsa-sha512",
+            },
+            SignatureAlgorithm::HMAC(size) => match size {
+                ShaSize::TwoFiftySix => "hmac-sha256",
+                ShaSize::ThreeEightyFour => "hmac-sha384",
+                ShaSize::FiveTwelve => "hmac-sha512",
+            },
         }
     }
 }
@@ -226,13 +224,13 @@ mod tests {
     use std::io::Cursor;
     use std::fs::File;
 
-    use super::SignatureAlgorithm;
-    use super::ShaSize;
-    use super::REQUEST_TARGET;
     use create::HttpSignature;
-    use verify::GetKey;
-    use verify::SignedHeader;
     use error::VerificationError;
+    use prelude::*;
+    use super::REQUEST_TARGET;
+    use super::ShaSize;
+    use super::SignatureAlgorithm;
+    use verify::SignedHeader;
 
     struct HmacKeyGetter {
         key: Vec<u8>,
@@ -297,10 +295,12 @@ mod tests {
         for _ in 0..len {
             key_vec.push(0);
         }
-        let _ = hmac::SigningKey::generate_serializable(digest, &rng, key_vec.as_mut_slice())
-            .unwrap();
+        let _ =
+            hmac::SigningKey::generate_serializable(digest, &rng, key_vec.as_mut_slice()).unwrap();
 
-        let key_getter = HmacKeyGetter { key: key_vec.clone() };
+        let key_getter = HmacKeyGetter {
+            key: key_vec.clone(),
+        };
 
         let method = "GET";
         let path = "/test";

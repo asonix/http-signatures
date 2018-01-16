@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
-//! This module defines the Error types for http_signatures.
+//! This module defines the Error types for `http_signatures`.
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -143,7 +143,7 @@ pub enum DecodeError {
 impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            DecodeError::MissingKey(ref mk) => write!(f, "Missing key: {}", mk),
+            DecodeError::MissingKey(mk) => write!(f, "Missing key: {}", mk),
             DecodeError::InvalidAlgorithm(ref ia) => write!(f, "Invalid Algorithm: {}", ia),
             _ => write!(f, "{}", self.description()),
         }
@@ -201,7 +201,9 @@ impl fmt::Display for VerificationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             VerificationError::Decode(ref de) => write!(f, "Verification: {}", de),
-            VerificationError::MissingHeaders(ref mh) => write!(f, "{}, {}", self.description(), mh),
+            VerificationError::MissingHeaders(ref mh) => {
+                write!(f, "{}, {}", self.description(), mh)
+            }
             VerificationError::Utf8(ref ue) => write!(f, "Verification: reading headers: {}", ue),
             _ => write!(f, "{}", self.description()),
         }
@@ -212,7 +214,9 @@ impl StdError for VerificationError {
     fn description(&self) -> &str {
         match *self {
             VerificationError::Decode(ref de) => de.description(),
-            VerificationError::MissingHeaders(_) => "Verification: Headers provided in headers field are not present in the request",
+            VerificationError::MissingHeaders(_) => {
+                "Verification: Headers provided in headers field are not present in the request"
+            }
             VerificationError::Utf8(ref ue) => ue.description(),
             VerificationError::GetKey => "Verification: Error getting key",
             VerificationError::ReadKey => "Verification: Error reading key",

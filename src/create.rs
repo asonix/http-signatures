@@ -13,79 +13,20 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
-//! This module defines types and traits for creating HTTP Signatures.
+//! This module defines types for creating HTTP Signatures.
 
 use std::collections::BTreeMap;
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 use std::io::Read;
 
-use ring::{rand, signature, digest, hmac};
+use ring::{digest, hmac, rand, signature};
 use base64::encode;
 use untrusted::Input;
 
-use super::{SignatureAlgorithm, ShaSize};
-use error::{Error, CreationError};
-
-/// `AsHttpSignature` defines a trait for getting an Authorization or Signature Header string from
-/// any type that implements it. It provides three methods: as_http_signature, which implementors must
-/// define, and authorization_header and signature_header, which use as_http_signature to create the
-/// header string.
-pub trait AsHttpSignature<T>
-where
-    T: Read,
-{
-    /// Gets an `HttpSignature` struct from an immutably borrowed Self
-    fn as_http_signature(
-        &self,
-        key_id: String,
-        key: T,
-        algorithm: SignatureAlgorithm,
-    ) -> Result<HttpSignature<T>, Error>;
-
-    /// Generates the Authorization Header from an immutably borrowed Self
-    fn authorization_header(
-        &self,
-        key_id: String,
-        key: T,
-        algorithm: SignatureAlgorithm,
-    ) -> Result<String, Error> {
-        Ok(self.as_http_signature(key_id, key, algorithm)?
-            .authorization_header()?)
-    }
-
-    /// Generates the Signature Header from an immutably borrowed Self
-    fn signature_header(
-        &self,
-        key_id: String,
-        key: T,
-        algorithm: SignatureAlgorithm,
-    ) -> Result<String, Error> {
-        Ok(self.as_http_signature(key_id, key, algorithm)?
-            .signature_header()?)
-    }
-}
-
-/// `WithHttpSignature` defines a trait for adding Authorization and Signature headers to another
-/// library's request or response object.
-pub trait WithHttpSignature<T>: AsHttpSignature<T>
-where
-    T: Read,
-{
-    fn with_authorization_header(
-        &mut self,
-        key_id: String,
-        key: T,
-        algorithm: SignatureAlgorithm,
-    ) -> Result<&mut Self, Error>;
-
-    fn with_signature_header(
-        &mut self,
-        key_id: String,
-        key: T,
-        algorithm: SignatureAlgorithm,
-    ) -> Result<&mut Self, Error>;
-}
+use error::{CreationError, Error};
+use super::{ShaSize, SignatureAlgorithm};
+use prelude::*;
 
 /// The `HttpSignature` struct, this is the entry point for creating Authorization or Signature
 /// headers. It contains all the values required for generation.
@@ -311,11 +252,12 @@ impl Signature {
     fn header(self) -> String {
         let alg: &str = self.algorithm.into();
 
-        format!("Signature keyId=\"{}\",algorithm=\"{}\",headers=\"{}\",signature=\"{}\"",
-                self.key_id,
-                alg,
-                self.headers.join(" "),
-                self.sig,
+        format!(
+            "Signature keyId=\"{}\",algorithm=\"{}\",headers=\"{}\",signature=\"{}\"",
+            self.key_id,
+            alg,
+            self.headers.join(" "),
+            self.sig,
         )
     }
 
@@ -327,16 +269,12 @@ impl Signature {
         key.read_to_end(&mut private_key_der)?;
         let private_key_der = Input::from(&private_key_der);
 
-        let key_pair = signature::RSAKeyPair::from_der(private_key_der).map_err(
-            |_| {
-                CreationError::BadPrivateKey
-            },
-        )?;
+        let key_pair = signature::RSAKeyPair::from_der(private_key_der)
+            .map_err(|_| CreationError::BadPrivateKey)?;
         let key_pair = Arc::new(key_pair);
 
-        let mut signing_state = signature::RSASigningState::new(key_pair).map_err(|_| {
-            CreationError::SigningError
-        })?;
+        let mut signing_state =
+            signature::RSASigningState::new(key_pair).map_err(|_| CreationError::SigningError)?;
 
         let rng = rand::SystemRandom::new();
         let mut signature = vec![0; signing_state.key_pair().public_modulus_len()];
@@ -386,30 +324,26 @@ where
     /// an `Error` will be returned.
     fn try_from(signing_string: SigningString<T>) -> Result<Self, Self::Error> {
         Ok(match signing_string.algorithm {
-            SignatureAlgorithm::RSA(size) => {
-                Signature {
-                    sig: Signature::rsa(
-                        signing_string.key,
-                        &size,
-                        signing_string.signing_string.as_ref(),
-                    )?,
-                    key_id: signing_string.key_id,
-                    headers: signing_string.headers,
-                    algorithm: SignatureAlgorithm::RSA(size),
-                }
-            }
-            SignatureAlgorithm::HMAC(size) => {
-                Signature {
-                    sig: Signature::hmac(
-                        signing_string.key,
-                        &size,
-                        signing_string.signing_string.as_ref(),
-                    )?,
-                    key_id: signing_string.key_id,
-                    headers: signing_string.headers,
-                    algorithm: SignatureAlgorithm::HMAC(size),
-                }
-            }
+            SignatureAlgorithm::RSA(size) => Signature {
+                sig: Signature::rsa(
+                    signing_string.key,
+                    &size,
+                    signing_string.signing_string.as_ref(),
+                )?,
+                key_id: signing_string.key_id,
+                headers: signing_string.headers,
+                algorithm: SignatureAlgorithm::RSA(size),
+            },
+            SignatureAlgorithm::HMAC(size) => Signature {
+                sig: Signature::hmac(
+                    signing_string.key,
+                    &size,
+                    signing_string.signing_string.as_ref(),
+                )?,
+                key_id: signing_string.key_id,
+                headers: signing_string.headers,
+                algorithm: SignatureAlgorithm::HMAC(size),
+            },
         })
     }
 }

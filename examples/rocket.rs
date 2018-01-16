@@ -16,16 +16,16 @@
 #![feature(plugin)]
 #![plugin(rocket_codegen)]
 
-extern crate rocket;
 extern crate http_signatures;
+extern crate rocket;
 
 use std::io::{Cursor, Read};
 
 use rocket::State;
-use rocket::Outcome::{Success, Failure};
-use rocket::request::{Request, FromRequest, Outcome};
+use rocket::Outcome::{Failure, Success};
+use rocket::request::{FromRequest, Outcome, Request};
 use rocket::http::Status;
-use http_signatures::{GetKey, VerifyHeader};
+use http_signatures::prelude::*;
 
 #[derive(Debug)]
 enum Error {

@@ -27,7 +27,8 @@ use std::str::from_utf8;
 use hyper::header::Authorization;
 use hyper::server::Request;
 
-use verify::{SignedHeader, VerifyHeader, GetKey};
+use prelude::*;
+use verify::SignedHeader;
 use error::VerificationError;
 
 impl VerifyHeader for Request {
@@ -45,9 +46,9 @@ impl VerifyHeader for Request {
         &self,
         key_getter: G,
     ) -> Result<(), VerificationError> {
-        let &Authorization(ref auth_header) = self.headers().get::<Authorization<String>>().ok_or(
-            VerificationError::HeaderNotPresent,
-        )?;
+        let &Authorization(ref auth_header) = self.headers()
+            .get::<Authorization<String>>()
+            .ok_or(VerificationError::HeaderNotPresent)?;
 
         verify_header(self, auth_header, key_getter)
     }
@@ -61,9 +62,7 @@ where
 
     let headers: Vec<(&str, String)> = req.headers()
         .iter()
-        .map(|header_view| {
-            (header_view.name(), header_view.value_string())
-        })
+        .map(|header_view| (header_view.name(), header_view.value_string()))
         .collect();
 
     let headers_borrowed: Vec<(&str, &str)> = headers

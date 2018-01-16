@@ -13,13 +13,14 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
-extern crate reqwest;
 extern crate http_signatures;
+extern crate reqwest;
 
 use std::fs::File;
 
 use reqwest::Client;
-use http_signatures::{WithHttpSignature, SignatureAlgorithm, ShaSize};
+use http_signatures::prelude::*;
+use http_signatures::{ShaSize, SignatureAlgorithm};
 
 fn main() {
     let key_id = "some-username-or-something".into();
