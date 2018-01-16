@@ -13,9 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
-extern crate hyper;
 extern crate futures;
 extern crate http_signatures;
+extern crate hyper;
 
 use std::io::{Cursor, Read};
 
@@ -23,7 +23,7 @@ use futures::{Future, IntoFuture};
 
 use hyper::header::ContentLength;
 use hyper::server::{Http, Request, Response, Service};
-use http_signatures::{GetKey, VerifyHeader};
+use http_signatures::prelude::*;
 
 #[derive(Debug)]
 enum Error {
@@ -62,11 +62,13 @@ struct HelloWorld {
 
 impl HelloWorld {
     fn new(filename: &str) -> Result<Self, Error> {
-        Ok(HelloWorld { key_getter: MyKeyGetter::new(filename)? })
+        Ok(HelloWorld {
+            key_getter: MyKeyGetter::new(filename)?,
+        })
     }
 }
 
-const PHRASE: &'static str = "Hewwo, Mr. Obama???";
+const PHRASE: &str = "Hewwo, Mr. Obama???";
 
 impl Service for HelloWorld {
     type Request = Request;
@@ -81,11 +83,9 @@ impl Service for HelloWorld {
 
         Box::new(verified.into_future().and_then(|_| {
             println!("Succesfully verified request!");
-            Ok(
-                Response::new()
-                    .with_header(ContentLength(PHRASE.len() as u64))
-                    .with_body(PHRASE),
-            )
+            Ok(Response::new()
+                .with_header(ContentLength(PHRASE.len() as u64))
+                .with_body(PHRASE))
         }))
     }
 }
@@ -93,9 +93,10 @@ impl Service for HelloWorld {
 fn main() {
     let addr = "127.0.0.1:3000".parse().unwrap();
     let server = Http::new()
-        .bind(&addr, || {
-            Ok(HelloWorld::new("tests/assets/public.der").unwrap())
-        })
+        .bind(
+            &addr,
+            || Ok(HelloWorld::new("tests/assets/public.der").unwrap()),
+        )
         .unwrap();
     server.run().unwrap();
 }

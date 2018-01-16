@@ -17,87 +17,20 @@ use std::io::Read;
 use std::convert::{TryFrom, TryInto};
 use std::collections::HashMap;
 
-use ring::{signature, digest, hmac};
+use ring::{digest, hmac, signature};
 use ring::error::Unspecified;
 use base64::decode;
 use untrusted::Input;
 
-use super::{SignatureAlgorithm, ShaSize, REQUEST_TARGET};
+use prelude::*;
+use super::{ShaSize, SignatureAlgorithm, REQUEST_TARGET};
 use error::{DecodeError, VerificationError};
 
-const KEY_ID: &'static str = "keyId";
-const HEADERS: &'static str = "headers";
-const ALGORITHM: &'static str = "algorithm";
-const DATE: &'static str = "date";
-const SIGNATURE: &'static str = "signature";
-
-/// The GetKey trait is used during HTTP Signature verification to access the required decryption
-/// key based on a given key_id.
-///
-/// The `key_id` is provided in the Authorization or Signature header of the request as `KeyId`.
-///
-/// ### Example
-/// ```rust
-/// # use std::io::Cursor;
-/// # use std::collections::HashMap;
-/// use http_signatures::GetKey;
-///
-/// struct MyKeyGetter {
-///     keys: HashMap<String, Vec<u8>>,
-/// }
-///
-/// impl MyKeyGetter {
-///     pub fn new() -> Self {
-///         MyKeyGetter {
-///             keys: HashMap::new(),
-///         }
-///     }
-///
-///     pub fn add_key(&mut self, key_id: String, key: Vec<u8>) {
-///         self.keys.insert(key_id, key);
-///     }
-/// }
-///
-/// impl GetKey for MyKeyGetter {
-///     type Key = Cursor<Vec<u8>>;
-///     type Error = ();
-///
-///     fn get_key(self, key_id: &str) -> Result<Self::Key, Self::Error> {
-///         self.keys.get(key_id).map(|key| Cursor::new(key.clone())).ok_or(())
-///     }
-/// }
-///
-/// # fn run() -> Result<(), ()> {
-/// let mut key_getter = MyKeyGetter::new();
-/// key_getter.add_key("key-1".into(), vec![1, 2, 3, 4, 5]);
-///
-/// key_getter.get_key("key-1")?;
-/// # Ok(())
-/// # }
-/// ```
-pub trait GetKey {
-    type Key: Read;
-    type Error;
-
-    fn get_key(self, key_id: &str) -> Result<Self::Key, Self::Error>;
-}
-
-/// The `VerifyHeader` trait is meant to be implemented for the request types from
-/// http libraries (such as Hyper and Rocket). This trait makes verifying requests much easier,
-/// since the `verify_authorization_header()` and `verify_signature_header()` methods can be called
-/// directly on a Request type.
-///
-/// For examples, see the
-/// [hyper server](https://github.com/asonix/http-signatures/blob/master/examples/hyper_server.rs)
-/// and [rocket](https://github.com/asonix/http-signatures/blob/master/examples/rocket.rs) files.
-pub trait VerifyHeader {
-    fn verify_signature_header<G: GetKey>(&self, key_getter: G) -> Result<(), VerificationError>;
-
-    fn verify_authorization_header<G: GetKey>(
-        &self,
-        key_getter: G,
-    ) -> Result<(), VerificationError>;
-}
+const KEY_ID: &str = "keyId";
+const HEADERS: &str = "headers";
+const ALGORITHM: &str = "algorithm";
+const DATE: &str = "date";
+const SIGNATURE: &str = "signature";
 
 /// The `SignedHeader` struct is the direct reasult of reading in the Authorization or Signature
 /// header from a given request.
@@ -105,7 +38,7 @@ pub trait VerifyHeader {
 /// It contains the keys to the request's headers in the correct order for recreating the signing
 /// string, the algorithm used to create the signature, and the signature itself.
 ///
-/// It also contains the key_id, which will be handled by a type implementing `GetKey`.
+/// It also contains the `key_id`, which will be handled by a type implementing `GetKey`.
 #[derive(Debug)]
 pub struct SignedHeader<'a> {
     key_id: &'a str,
@@ -151,7 +84,7 @@ impl<'a> TryFrom<&'a str> for SignedHeader<'a> {
         let s = s.trim_left_matches("Signature ");
         let key_value = s.split(',')
             .filter_map(|item| {
-                let eq_index = item.find("=")?;
+                let eq_index = item.find('=')?;
                 let tup = item.split_at(eq_index);
                 let val = tup.1.get(1..)?;
                 Some((tup.0, val))
@@ -161,29 +94,29 @@ impl<'a> TryFrom<&'a str> for SignedHeader<'a> {
         let key_id = key_value
             .get(KEY_ID)
             .ok_or(DecodeError::MissingKey(KEY_ID))?
-            .trim_left_matches("\"")
-            .trim_right_matches("\"");
+            .trim_left_matches('"')
+            .trim_right_matches('"');
 
         let header_keys = key_value
             .get(HEADERS)
             .unwrap_or(&DATE)
-            .trim_left_matches("\"")
-            .trim_right_matches("\"")
+            .trim_left_matches('"')
+            .trim_right_matches('"')
             .split(' ')
             .collect();
 
         let algorithm = (*key_value
-                             .get(ALGORITHM)
-                             .ok_or(DecodeError::MissingKey(ALGORITHM))?
-                             .trim_left_matches("\"")
-                             .trim_right_matches("\""))
-            .try_into()?;
+            .get(ALGORITHM)
+            .ok_or(DecodeError::MissingKey(ALGORITHM))?
+            .trim_left_matches('"')
+            .trim_right_matches('"'))
+            .parse()?;
 
         let sig_string: String = key_value
             .get(SIGNATURE)
             .ok_or(DecodeError::MissingKey(SIGNATURE))?
-            .trim_left_matches("\"")
-            .trim_right_matches("\"")
+            .trim_left_matches('"')
+            .trim_right_matches('"')
             .into();
 
         let signature = decode(&sig_string).map_err(|_| DecodeError::NotBase64)?;
@@ -211,19 +144,20 @@ impl<'a> CheckSignedHeader<'a> {
     where
         G: GetKey,
     {
-        let key: G::Key = key_getter.get_key(self.auth_header.key_id).map_err(|_| {
-            VerificationError::GetKey
-        })?;
+        let key: G::Key = key_getter
+            .get_key(self.auth_header.key_id)
+            .map_err(|_| VerificationError::GetKey)?;
 
-        let headers: HashMap<String, Vec<&str>> =
-            self.headers.iter().fold(HashMap::new(), |mut acc,
-             &(ref key, ref value)| {
-                acc.entry(key.to_lowercase()).or_insert(Vec::new()).push(
-                    value,
-                );
+        let headers: HashMap<String, Vec<&str>> = self.headers.iter().fold(
+            HashMap::new(),
+            |mut acc, &(key, value)| {
+                acc.entry(key.to_lowercase())
+                    .or_insert_with(Vec::new)
+                    .push(value);
 
                 acc
-            });
+            },
+        );
 
         let mut headers: HashMap<&str, String> = headers
             .iter()
@@ -231,66 +165,53 @@ impl<'a> CheckSignedHeader<'a> {
             .collect();
 
         headers.insert(
-            REQUEST_TARGET.into(),
-            if let Some(ref query) = self.query {
-                format!(
-                    "{} {}?{}",
-                    self.method.to_lowercase(),
-                    self.path,
-                    query,
-                )
+            REQUEST_TARGET,
+            if let Some(query) = self.query {
+                format!("{} {}?{}", self.method.to_lowercase(), self.path, query,)
             } else {
-                format!(
-                    "{} {}",
-                    self.method.to_lowercase(),
-                    self.path,
-                )
+                format!("{} {}", self.method.to_lowercase(), self.path,)
             },
         );
 
         let signing_vec = self.auth_header.header_keys.iter().fold(
             (Vec::new(), Vec::new()),
             |mut acc, header_key| {
-                if let Some(ref header) = headers.get(header_key) {
+                if let Some(header) = headers.get(header_key) {
                     acc.0.push(format!("{}: {}", header_key, header));
                 } else {
-                    acc.1.push(header_key.clone());
+                    acc.1.push(header_key.to_owned());
                 }
 
                 acc
             },
         );
 
-        if signing_vec.1.len() > 0 {
+        if !signing_vec.1.is_empty() {
             return Err(VerificationError::MissingHeaders(signing_vec.1.join(", ")));
         }
 
         let signing_string = signing_vec.0.join("\n");
 
         match self.auth_header.algorithm {
-            SignatureAlgorithm::RSA(ref sha_size) => {
-                Self::verify_rsa(
-                    key,
-                    sha_size,
-                    signing_string,
-                    self.auth_header.signature.as_ref(),
-                )
-            }
-            SignatureAlgorithm::HMAC(ref sha_size) => {
-                Self::verify_hmac(
-                    key,
-                    sha_size,
-                    signing_string,
-                    self.auth_header.signature.as_ref(),
-                )
-            }
+            SignatureAlgorithm::RSA(ref sha_size) => Self::verify_rsa(
+                key,
+                sha_size,
+                signing_string.as_bytes(),
+                &self.auth_header.signature,
+            ),
+            SignatureAlgorithm::HMAC(ref sha_size) => Self::verify_hmac(
+                key,
+                sha_size,
+                signing_string.as_bytes(),
+                &self.auth_header.signature,
+            ),
         }
     }
 
     fn verify_rsa<T>(
         mut key: T,
         sha_size: &ShaSize,
-        signing_string: String,
+        signing_string: &[u8],
         sig: &[u8],
     ) -> Result<(), VerificationError>
     where
@@ -298,11 +219,10 @@ impl<'a> CheckSignedHeader<'a> {
     {
         // Verify the signature.
         let mut public_key_der = Vec::new();
-        key.read_to_end(&mut public_key_der).map_err(|_| {
-            VerificationError::ReadKey
-        })?;
+        key.read_to_end(&mut public_key_der)
+            .map_err(|_| VerificationError::ReadKey)?;
         let public_key_der = Input::from(&public_key_der);
-        let message = Input::from(signing_string.as_ref());
+        let message = Input::from(signing_string);
         let signature = Input::from(sig);
 
         match *sha_size {
@@ -338,16 +258,15 @@ impl<'a> CheckSignedHeader<'a> {
     fn verify_hmac<T>(
         mut key: T,
         sha_size: &ShaSize,
-        signing_string: String,
+        signing_string: &[u8],
         sig: &[u8],
     ) -> Result<(), VerificationError>
     where
         T: Read,
     {
         let mut hmac_key = Vec::new();
-        key.read_to_end(&mut hmac_key).map_err(
-            |_| VerificationError::ReadKey,
-        )?;
+        key.read_to_end(&mut hmac_key)
+            .map_err(|_| VerificationError::ReadKey)?;
         let hmac_key = hmac::SigningKey::new(
             match *sha_size {
                 ShaSize::TwoFiftySix => &digest::SHA256,
@@ -357,7 +276,7 @@ impl<'a> CheckSignedHeader<'a> {
             &hmac_key,
         );
 
-        hmac::verify_with_own_key(&hmac_key, signing_string.as_ref(), sig)
+        hmac::verify_with_own_key(&hmac_key, signing_string, sig)
             .map_err(|_| VerificationError::BadSignature)?;
 
         Ok(())

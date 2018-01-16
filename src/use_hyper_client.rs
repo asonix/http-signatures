@@ -34,7 +34,8 @@
 //! # use std::error::Error;
 //! # use std::fs::File;
 //! #
-//! # use http_signatures::{AsHttpSignature, ShaSize, SignatureAlgorithm};
+//! # use http_signatures::prelude::*;
+//! # use http_signatures::{ShaSize, SignatureAlgorithm};
 //! # use hyper::{Method, Request};
 //! #
 //! # fn run() -> Result<(), Box<Error>> {
@@ -64,7 +65,8 @@
 //! # use std::error::Error;
 //! # use std::fs::File;
 //! #
-//! # use http_signatures::{WithHttpSignature, ShaSize, SignatureAlgorithm};
+//! # use http_signatures::prelude::*;
+//! # use http_signatures::{ShaSize, SignatureAlgorithm};
 //! # use hyper::{Method, Request};
 //! #
 //! # fn run() -> Result<(), Box<Error>> {
@@ -89,9 +91,10 @@
 use std::io::Read;
 use std::collections::BTreeMap;
 
+use create::HttpSignature;
 use error::Error;
+use prelude::*;
 use super::{SignatureAlgorithm, REQUEST_TARGET};
-use create::{AsHttpSignature, WithHttpSignature, HttpSignature};
 
 use hyper::Request as HyperRequest;
 
@@ -113,7 +116,7 @@ where
         headers.insert(
             REQUEST_TARGET.into(),
             vec![
-                if let Some(ref query) = self.uri().query() {
+                if let Some(query) = self.uri().query() {
                     format!(
                         "{} {}?{}",
                         self.method().as_ref().to_lowercase(),
@@ -132,7 +135,7 @@ where
 
         let headers = self.headers().iter().fold(headers, |mut acc, header_view| {
             acc.entry(header_view.name().into())
-                .or_insert(Vec::new())
+                .or_insert_with(Vec::new)
                 .push(header_view.value_string());
 
             acc
@@ -147,8 +150,9 @@ where
 /// This automatically adds an Authorization header to a given `hyper::Request` struct containing
 /// an HTTP Signature.
 ///
-/// See [https://github.com/asonix/http-signatures/blob/master/examples/hyper_client.rs](this
-/// example) for usage information.
+/// See
+/// [this example](https://github.com/asonix/http-signatures/blob/master/examples/hyper_client.rs)
+/// for usage information.
 impl<T> WithHttpSignature<T> for HyperRequest
 where
     T: Read,
@@ -182,18 +186,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use std::fs::File;
     use std::convert::TryInto;
+    use std::fs::File;
+    use std::str::FromStr;
 
     use hyper::{Method, Request};
-    use hyper::header::{ContentLength, ContentType, Host, HttpDate};
-    use hyper::header::Date;
+    use hyper::header::{ContentLength, ContentType, Date, Host, HttpDate};
 
+    use create::SigningString;
     use ShaSize;
     use SignatureAlgorithm;
-    use create::AsHttpSignature;
-    use create::SigningString;
+    use prelude::*;
 
     /* Request used for all tests:
      *
