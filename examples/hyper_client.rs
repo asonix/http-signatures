@@ -21,8 +21,8 @@ extern crate tokio_core;
 use std::fs::File;
 
 use tokio_core::reactor::Core;
-use hyper::{Client, Method, Request};
-use hyper::header::{ContentLength, ContentType};
+use hyper::{Body, Client, Request};
+use hyper::header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE};
 use futures::{Future, Stream};
 use http_signatures::prelude::*;
 use http_signatures::{ShaSize, SignatureAlgorithm};
@@ -32,13 +32,13 @@ fn main() {
     let private_key = File::open("tests/assets/private.der").unwrap();
 
     let mut core = Core::new().unwrap();
-    let client = Client::new(&core.handle());
+    let client = Client::new();
 
     let json = r#"{"library":"hyper"}"#;
-    let mut req = Request::new(Method::Post, "http://localhost:3000".parse().unwrap());
-    req.headers_mut().set(ContentType::json());
-    req.headers_mut().set(ContentLength(json.len() as u64));
-    req.set_body(json);
+    let mut req = Request::post("http://localhost:3000")
+        .body(Body::from(json)).unwrap();;
+    req.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_str("application/json").unwrap());
+    req.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_str(&format!("{}", json.len())).unwrap());
 
     // Add the HTTP Signature
     req.with_signature_header(
@@ -50,7 +50,7 @@ fn main() {
     let post = client.request(req).and_then(|res| {
         println!("POST: {}", res.status());
 
-        res.body().concat2()
+        res.into_body().concat2()
     });
 
     core.run(post).unwrap();
