@@ -60,18 +60,6 @@ impl<'a> GetKey for &'a MyKeyGetter {
     }
 }
 
-// struct HelloWorld {
-//     key_getter: MyKeyGetter,
-// }
-
-// impl HelloWorld {
-//     fn new(filename: &str) -> Result<Self, Error> {
-//         Ok(HelloWorld {
-//             key_getter: MyKeyGetter::new(filename)?,
-//         })
-//     }
-// }
-
 const PHRASE: &str = "Hewwo, Mr. Obama???";
 
 fn main() {
