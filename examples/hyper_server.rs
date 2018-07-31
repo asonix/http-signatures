@@ -15,14 +15,18 @@
 
 extern crate futures;
 extern crate http_signatures;
+extern crate http;
 extern crate hyper;
 
 use std::io::{Cursor, Read};
+use std::sync::Arc;
 
 use futures::{Future, IntoFuture};
 
-use hyper::header::ContentLength;
-use hyper::server::{Http, Request, Response, Service};
+use hyper::rt;
+use hyper::header::CONTENT_LENGTH;
+use hyper::{Server, Request, Response, Body};
+use hyper::service::service_fn;
 use http_signatures::prelude::*;
 
 #[derive(Debug)]
@@ -47,7 +51,7 @@ impl MyKeyGetter {
     }
 }
 
-impl GetKey for MyKeyGetter {
+impl<'a> GetKey for &'a MyKeyGetter {
     type Key = Cursor<Vec<u8>>;
     type Error = Error;
 
@@ -56,47 +60,42 @@ impl GetKey for MyKeyGetter {
     }
 }
 
-struct HelloWorld {
-    key_getter: MyKeyGetter,
-}
+// struct HelloWorld {
+//     key_getter: MyKeyGetter,
+// }
 
-impl HelloWorld {
-    fn new(filename: &str) -> Result<Self, Error> {
-        Ok(HelloWorld {
-            key_getter: MyKeyGetter::new(filename)?,
-        })
-    }
-}
+// impl HelloWorld {
+//     fn new(filename: &str) -> Result<Self, Error> {
+//         Ok(HelloWorld {
+//             key_getter: MyKeyGetter::new(filename)?,
+//         })
+//     }
+// }
 
 const PHRASE: &str = "Hewwo, Mr. Obama???";
 
-impl Service for HelloWorld {
-    type Request = Request;
-    type Response = Response;
-    type Error = hyper::Error;
-
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
-
-    fn call(&self, req: Request) -> Self::Future {
-        let verified = req.verify_signature_header(self.key_getter.clone())
-            .map_err(|_| hyper::Error::Header);
-
-        Box::new(verified.into_future().and_then(|_| {
-            println!("Succesfully verified request!");
-            Ok(Response::new()
-                .with_header(ContentLength(PHRASE.len() as u64))
-                .with_body(PHRASE))
-        }))
-    }
-}
-
 fn main() {
+    let key_getter_arc = Arc::new(MyKeyGetter::new("tests/assets/public.der").unwrap());
+    let service = move || {
+        let key_getter = key_getter_arc.clone();
+        service_fn(move |req: Request<Body>| {
+            let verified = req.verify_signature_header(&*key_getter);
+
+            verified.into_future()
+                .map_err(|e| format!("{:?}", e))
+                .and_then(|_| {
+                    println!("Succesfully verified request!");
+                    Response::builder()
+                        .header(CONTENT_LENGTH, PHRASE.len() as u64)
+                        .body(Body::from(PHRASE))
+                        .map_err(|e| format!("{:?}", e))
+                })
+        })
+    };
+
     let addr = "127.0.0.1:3000".parse().unwrap();
-    let server = Http::new()
-        .bind(
-            &addr,
-            || Ok(HelloWorld::new("tests/assets/public.der").unwrap()),
-        )
-        .unwrap();
-    server.run().unwrap();
+    let server = Server::bind(&addr)
+        .serve(service)
+        .map_err(|e| eprintln!("server error: {}", e));
+    rt::run(server);
 }
