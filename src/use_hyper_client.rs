@@ -40,10 +40,11 @@
 //! #
 //! # fn run() -> Result<(), Box<Error>> {
 //! let key = File::open("tests/assets/private.der")?;
-//! let uri = "https://example.com".parse()?;
+//! let uri = "https://example.com";
 //! let alg = SignatureAlgorithm::RSA(ShaSize::TwoFiftySix);
 //!
-//! let req: Request = Request::new(Method::Post, uri);
+//! let req = Request::post(uri)
+//!     .body(()).unwrap();
 //!
 //! let http_sig = req.as_http_signature("rsa-key-1".into(), key, alg)?;
 //! #     Ok(())
@@ -71,10 +72,11 @@
 //! #
 //! # fn run() -> Result<(), Box<Error>> {
 //! let key = File::open("tests/assets/private.der")?;
-//! let uri = "https://example.com".parse()?;
+//! let uri = "https://example.com";
 //! let alg = SignatureAlgorithm::RSA(ShaSize::TwoFiftySix);
 //!
-//! let mut req: Request = Request::new(Method::Post, uri);
+//! let mut req: Request<_> = Request::post(uri)
+//!     .body(()).unwrap();
 //!
 //! req.with_authorization_header("rsa-key-1".into(), key, alg)?;
 //! #     Ok(())
