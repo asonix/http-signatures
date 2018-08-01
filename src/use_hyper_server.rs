@@ -60,18 +60,18 @@ where
 {
     let auth_header = SignedHeader::new(header)?;
 
-    let headers: Vec<(&str, String)> = req.headers()
+    let headers: Vec<(&str, &str)> = req.headers()
         .iter()
-        .map(|(header_name, header_value)| (header_name.as_str(), header_value.to_str().unwrap().to_string()))
-        .collect();
-
-    let headers_borrowed: Vec<(&str, &str)> = headers
-        .iter()
-        .map(|&(key, ref val)| (key, val.as_ref()))
+        .filter_map(|(header_name, header_value)|
+                    header_value.to_str().ok()
+                    .map(|header_value|
+                              (header_name.as_str(), header_value)
+                    )
+        )
         .collect();
 
     auth_header.verify(
-        headers_borrowed.as_ref(),
+        headers.as_ref(),
         &req.method().as_ref().to_lowercase(),
         req.uri().path(),
         req.uri().query(),

@@ -94,7 +94,7 @@ use std::io::Read;
 use std::collections::BTreeMap;
 
 use create::HttpSignature;
-use error::Error;
+use error::{Error, CreationError};
 use prelude::*;
 use super::{SignatureAlgorithm, REQUEST_TARGET};
 
@@ -137,10 +137,12 @@ where
         );
 
         let headers = self.headers().iter().fold(headers, |mut acc, (header_name, header_value)| {
-            acc.entry(header_name.as_str().to_string())
-                .or_insert_with(Vec::new)
-                .push(header_value.to_str().unwrap().to_string());
-
+            let _ = header_value.to_str()
+                .map(|header_value|
+                     acc.entry(header_name.as_str().to_string())
+                     .or_insert_with(Vec::new)
+                     .push(header_value.to_string())
+                );
             acc
         });
 
@@ -169,7 +171,9 @@ where
         use hyper::header::AUTHORIZATION;
 
         let auth_header = self.authorization_header(key_id, key, algorithm)?;
-        self.headers_mut().insert(AUTHORIZATION, HeaderValue::from_str(&auth_header).unwrap());
+        let header = HeaderValue::from_str(&auth_header)
+            .or(Err(CreationError::NoHeaders))?;
+        self.headers_mut().insert(AUTHORIZATION, header);
 
         Ok(self)
     }
@@ -181,7 +185,9 @@ where
         algorithm: SignatureAlgorithm,
     ) -> Result<&mut Self, Error> {
         let sig_header = self.signature_header(key_id, key, algorithm)?;
-        self.headers_mut().insert("Signature", HeaderValue::from_str(&sig_header).unwrap());
+        let header = HeaderValue::from_str(&sig_header)
+            .or(Err(CreationError::NoHeaders))?;
+        self.headers_mut().insert("Signature", header);
 
         Ok(self)
     }
