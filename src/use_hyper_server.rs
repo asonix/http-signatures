@@ -22,59 +22,59 @@
 //! [this example](https://github.com/asonix/http-signatures/blob/master/examples/hyper_server.rs)
 //! for usage information.
 
-use std::str::from_utf8;
-
-use hyper::header::Authorization;
-use hyper::server::Request;
+use hyper::header::AUTHORIZATION;
+use hyper::Request;
 
 use prelude::*;
 use verify::SignedHeader;
 use error::VerificationError;
 
-impl VerifyHeader for Request {
+impl<B> VerifyHeader for Request<B> {
     fn verify_signature_header<G: GetKey>(&self, key_getter: G) -> Result<(), VerificationError> {
         let auth_header = self.headers()
-            .get_raw("Signature")
+            .get("Signature")
             .ok_or(VerificationError::HeaderNotPresent)?
-            .one()
-            .ok_or(VerificationError::HeaderNotPresent)?;
+            .to_str()
+            .map_err(|_| VerificationError::HeaderNotPresent)?;
 
-        verify_header(self, from_utf8(auth_header)?, key_getter)
+        verify_header(self, auth_header, key_getter)
     }
 
     fn verify_authorization_header<G: GetKey>(
         &self,
         key_getter: G,
     ) -> Result<(), VerificationError> {
-        let &Authorization(ref auth_header) = self.headers()
-            .get::<Authorization<String>>()
-            .ok_or(VerificationError::HeaderNotPresent)?;
+        let ref auth_header = self.headers()
+            .get(AUTHORIZATION)
+            .ok_or(VerificationError::HeaderNotPresent)?
+            .to_str()
+            .map_err(|_| VerificationError::HeaderNotPresent)?;
 
         verify_header(self, auth_header, key_getter)
     }
 }
 
-fn verify_header<G>(req: &Request, header: &str, key_getter: G) -> Result<(), VerificationError>
+fn verify_header<G, B>(req: &Request<B>, header: &str, key_getter: G) -> Result<(), VerificationError>
 where
     G: GetKey,
 {
     let auth_header = SignedHeader::new(header)?;
 
-    let headers: Vec<(&str, String)> = req.headers()
+    let headers: Vec<(&str, &str)> = req.headers()
         .iter()
-        .map(|header_view| (header_view.name(), header_view.value_string()))
-        .collect();
-
-    let headers_borrowed: Vec<(&str, &str)> = headers
-        .iter()
-        .map(|&(key, ref val)| (key, val.as_ref()))
+        .filter_map(|(header_name, header_value)|
+                    header_value.to_str().ok()
+                    .map(|header_value|
+                              (header_name.as_str(), header_value)
+                    )
+        )
         .collect();
 
     auth_header.verify(
-        headers_borrowed.as_ref(),
+        headers.as_ref(),
         &req.method().as_ref().to_lowercase(),
-        req.path(),
-        req.query(),
+        req.uri().path(),
+        req.uri().query(),
         key_getter,
     )
 }
