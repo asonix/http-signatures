@@ -25,9 +25,9 @@
 
 use rocket::Request;
 
+use error::VerificationError;
 use prelude::*;
 use verify::SignedHeader;
-use error::VerificationError;
 
 impl<'r> VerifyHeader for Request<'r> {
     fn verify_signature_header<G: GetKey>(&self, key_getter: G) -> Result<(), VerificationError> {
@@ -50,13 +50,15 @@ fn verify_header<'r, G>(
 where
     G: GetKey,
 {
-    let auth_header = req.headers()
+    let auth_header = req
+        .headers()
         .get_one(header)
         .ok_or(VerificationError::HeaderNotPresent)?;
 
     let auth_header = SignedHeader::new(auth_header)?;
 
-    let headers: Vec<(String, String)> = req.headers()
+    let headers: Vec<(String, String)> = req
+        .headers()
         .iter()
         .map(|header| (header.name().into(), header.value().into()))
         .collect();

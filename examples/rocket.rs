@@ -21,11 +21,11 @@ extern crate rocket;
 
 use std::io::{Cursor, Read};
 
-use rocket::State;
-use rocket::Outcome::{Failure, Success};
-use rocket::request::{FromRequest, Outcome, Request};
-use rocket::http::Status;
 use http_signatures::prelude::*;
+use rocket::http::Status;
+use rocket::request::{FromRequest, Outcome, Request};
+use rocket::Outcome::{Failure, Success};
+use rocket::State;
 
 #[derive(Debug)]
 enum Error {

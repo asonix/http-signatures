@@ -29,7 +29,7 @@ GETs on port 8000. These examples use the `Authorization` header to sign and ver
 Add this to your `Cargo.toml`
 ```toml
 [dependencies.http-signatures]
-version = "0.1"
+version = "0.2"
 default-features = false
 features = ["use_hyper"]
 ```
@@ -37,19 +37,26 @@ features = ["use_hyper"]
 Use it when building a request as follows.
 ```rust
 let key_id = "some-username-or-something";
-let private_key = File::open("test/assets/private.der").unwrap();
+let private_key = File::open("tests/assets/private.der").unwrap();
 
 let mut core = Core::new().unwrap();
-let client = Client::new(&core.handle());
+let client = Client::new();
 
 let json = r#"{"library":"hyper"}"#;
-let mut req = Request::new(Method::Post, "http://localhost:3000".parse().unwrap());
-req.headers_mut().set(ContentType::json());
-req.headers_mut().set(ContentLength(json.len() as u64));
-req.set_body(json);
+let mut req = Request::post("http://localhost:3000")
+    .body(Body::from(json))
+    .unwrap();
+req.headers_mut().insert(
+    CONTENT_TYPE,
+    HeaderValue::from_str("application/json").unwrap(),
+);
+req.headers_mut().insert(
+    CONTENT_LENGTH,
+    HeaderValue::from_str(&format!("{}", json.len())).unwrap(),
+);
 
 // Add the HTTP Signature
-req.with_authorization_header(
+req.with_signature_header(
     key_id.into(),
     private_key,
     SignatureAlgorithm::RSA(ShaSize::FiveTwelve),
@@ -58,7 +65,7 @@ req.with_authorization_header(
 let post = client.request(req).and_then(|res| {
     println!("POST: {}", res.status());
 
-    res.body().concat2()
+    res.into_body().concat2()
 });
 
 core.run(post).unwrap();
@@ -66,70 +73,64 @@ core.run(post).unwrap();
 ##### Server
 This is a very basic example server outline that should give you a general idea of how to set up a Hyper server that verifies HTTP Signatures. This is not meant to be code that actually works.
 ```rust
+#[derive(Debug)]
+enum Error {
+    FileError,
+}
+
 #[derive(Clone)]
 struct MyKeyGetter {
     key: Vec<u8>,
 }
 
 impl MyKeyGetter {
-    fn new(filename: &str) -> Result<Self, ..> {
+    fn new(filename: &str) -> Result<Self, Error> {
         let mut key = Vec::new();
         std::fs::File::open(filename)
-            .map_err(|_| ..)?
+            .map_err(|_| Error::FileError)?
             .read_to_end(&mut key)
-            .map_err(|_| ..)?;
+            .map_err(|_| Error::FileError)?;
 
         Ok(MyKeyGetter { key })
     }
 }
 
-impl GetKey for MyKeyGetter {
+impl<'a> GetKey for &'a MyKeyGetter {
     type Key = Cursor<Vec<u8>>;
-    type Error = ..;
+    type Error = Error;
 
-    fn get_key(self, _key_id: &str) -> Result<Self::Key, ..> {
+    fn get_key(self, _key_id: &str) -> Result<Self::Key, Self::Error> {
         Ok(Cursor::new(self.key.clone()))
     }
 }
 
-struct HelloWorld {
-    key_getter: MyKeyGetter,
-}
-
-impl HelloWorld {
-    fn new(filename: &str) -> Result<Self, ..> {
-        Ok(HelloWorld { key_getter: MyKeyGetter::new(filename)? })
-    }
-}
-
-const PHRASE: &'static str = "Hewwo, Mr. Obama???";
-
-impl Service for HelloWorld {
-    ...
-
-    fn call(&self, req: Request) -> Self::Future {
-        let verified = req.verify_authorization_header(self.key_getter.clone())
-            .map_err(|_| hyper::Error::Header);
-
-        Box::new(verified.into_future().and_then(|_| {
-            println!("Succesfully verified request!");
-            Ok(
-                Response::new()
-                    .with_header(ContentLength(PHRASE.len() as u64))
-                    .with_body(PHRASE),
-            )
-        }))
-    }
-}
+const PHRASE: &str = "Hewwo, Mr. Obama???";
 
 fn main() {
-    let addr = "127.0.0.1:3000".parse().unwrap();
-    let server = Http::new()
-        .bind(&addr, || {
-            Ok(HelloWorld::new("test/assets/public.der").unwrap())
+    let key_getter_arc = Arc::new(MyKeyGetter::new("tests/assets/public.der").unwrap());
+    let service = move || {
+        let key_getter = key_getter_arc.clone();
+        service_fn(move |req: Request<Body>| {
+            let verified = req.verify_signature_header(&*key_getter);
+
+            verified
+                .into_future()
+                .map_err(|e| format!("{:?}", e))
+                .and_then(|_| {
+                    println!("Succesfully verified request!");
+                    Response::builder()
+                        .header(CONTENT_LENGTH, PHRASE.len() as u64)
+                        .body(Body::from(PHRASE))
+                        .map_err(|e| format!("{:?}", e))
+                })
         })
-        .unwrap();
-    server.run().unwrap();
+    };
+
+    let addr = "127.0.0.1:3000".parse().unwrap();
+    let server = Server::bind(&addr)
+        .serve(service)
+        .map_err(|e| eprintln!("server error: {}", e));
+    rt::run(server);
 }
 ```
 #### With Reqwest

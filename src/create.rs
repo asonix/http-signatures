@@ -17,15 +17,15 @@
 
 use std::collections::BTreeMap;
 use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
 use std::io::Read;
+use std::sync::Arc;
 
-use ring::{digest, hmac, rand, signature};
 use base64::encode;
+use ring::{digest, hmac, rand, signature};
 use untrusted::Input;
 
-use error::{CreationError, Error};
 use super::{ShaSize, SignatureAlgorithm};
+use error::{CreationError, Error};
 use prelude::*;
 
 /// The `HttpSignature` struct, this is the entry point for creating Authorization or Signature
@@ -212,8 +212,7 @@ where
                     header.to_lowercase(),
                     format!("{}: {}", header.to_lowercase(), values.join(", ")),
                 )
-            })
-            .unzip();
+            }).unzip();
 
         SigningString {
             key_id: http_signature.key_id,
@@ -288,8 +287,7 @@ impl Signature {
                 &rng,
                 signing_string,
                 signature.as_mut_slice(),
-            )
-            .map_err(|_| CreationError::SigningError)?;
+            ).map_err(|_| CreationError::SigningError)?;
 
         Ok(encode(signature.as_slice()))
     }

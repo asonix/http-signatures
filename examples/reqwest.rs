@@ -18,9 +18,9 @@ extern crate reqwest;
 
 use std::fs::File;
 
-use reqwest::Client;
 use http_signatures::prelude::*;
 use http_signatures::{ShaSize, SignatureAlgorithm};
+use reqwest::Client;
 
 fn main() {
     let key_id = "some-username-or-something".into();

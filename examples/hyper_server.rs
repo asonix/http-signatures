@@ -14,8 +14,8 @@
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
 extern crate futures;
-extern crate http_signatures;
 extern crate http;
+extern crate http_signatures;
 extern crate hyper;
 
 use std::io::{Cursor, Read};
@@ -23,11 +23,11 @@ use std::sync::Arc;
 
 use futures::{Future, IntoFuture};
 
-use hyper::rt;
-use hyper::header::CONTENT_LENGTH;
-use hyper::{Server, Request, Response, Body};
-use hyper::service::service_fn;
 use http_signatures::prelude::*;
+use hyper::header::CONTENT_LENGTH;
+use hyper::rt;
+use hyper::service::service_fn;
+use hyper::{Body, Request, Response, Server};
 
 #[derive(Debug)]
 enum Error {
@@ -69,7 +69,8 @@ fn main() {
         service_fn(move |req: Request<Body>| {
             let verified = req.verify_signature_header(&*key_getter);
 
-            verified.into_future()
+            verified
+                .into_future()
                 .map_err(|e| format!("{:?}", e))
                 .and_then(|_| {
                     println!("Succesfully verified request!");

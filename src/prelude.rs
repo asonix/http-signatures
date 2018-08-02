@@ -17,9 +17,9 @@
 
 use std::io::Read;
 
+use super::SignatureAlgorithm;
 use create::HttpSignature;
 use error::{Error, VerificationError};
-use super::SignatureAlgorithm;
 
 /// `AsHttpSignature` defines a trait for getting an Authorization or Signature Header string from
 /// any type that implements it. It provides three methods: `as_http_signature`, which implementors
@@ -44,7 +44,8 @@ where
         key: T,
         algorithm: SignatureAlgorithm,
     ) -> Result<String, Error> {
-        Ok(self.as_http_signature(key_id, key, algorithm)?
+        Ok(self
+            .as_http_signature(key_id, key, algorithm)?
             .authorization_header()?)
     }
 
@@ -55,7 +56,8 @@ where
         key: T,
         algorithm: SignatureAlgorithm,
     ) -> Result<String, Error> {
-        Ok(self.as_http_signature(key_id, key, algorithm)?
+        Ok(self
+            .as_http_signature(key_id, key, algorithm)?
             .signature_header()?)
     }
 }

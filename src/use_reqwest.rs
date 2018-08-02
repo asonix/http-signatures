@@ -51,13 +51,13 @@
 //! [this example](https://github.com/asonix/http-signatures/blob/master/examples/reqwest.rs)
 //! for more usage information.
 
-use std::io::Read;
 use std::collections::BTreeMap;
+use std::io::Read;
 
+use super::{SignatureAlgorithm, REQUEST_TARGET};
 use create::HttpSignature;
 use error::Error;
 use prelude::*;
-use super::{SignatureAlgorithm, REQUEST_TARGET};
 
 use reqwest::Request as ReqwestRequest;
 
@@ -74,22 +74,20 @@ where
         let mut headers = BTreeMap::new();
         headers.insert(
             REQUEST_TARGET.into(),
-            vec![
-                if let Some(query) = self.url().query() {
-                    format!(
-                        "{} {}?{}",
-                        self.method().as_ref().to_lowercase(),
-                        self.url().path(),
-                        query
-                    )
-                } else {
-                    format!(
-                        "{} {}",
-                        self.method().as_ref().to_lowercase(),
-                        self.url().path()
-                    )
-                },
-            ],
+            vec![if let Some(query) = self.url().query() {
+                format!(
+                    "{} {}?{}",
+                    self.method().as_ref().to_lowercase(),
+                    self.url().path(),
+                    query
+                )
+            } else {
+                format!(
+                    "{} {}",
+                    self.method().as_ref().to_lowercase(),
+                    self.url().path()
+                )
+            }],
         );
 
         let headers = self.headers().iter().fold(headers, |mut acc, header_view| {
@@ -141,8 +139,8 @@ mod tests {
     use std::fs::File;
     use std::str::FromStr;
 
-    use reqwest::{Client, Request};
     use reqwest::header::{ContentLength, ContentType, Date, Headers, Host, HttpDate};
+    use reqwest::{Client, Request};
 
     use create::SigningString;
     use prelude::*;
@@ -211,7 +209,8 @@ host: example.org",
     fn test_request(req: Request, s: &str) {
         let key = File::open(PRIVATE_KEY_PATH).unwrap();
 
-        let http_sig = req.as_http_signature(KEY_ID.into(), key, ALGORITHM)
+        let http_sig = req
+            .as_http_signature(KEY_ID.into(), key, ALGORITHM)
             .unwrap();
 
         let signing_string: SigningString<File> = http_sig.try_into().unwrap();

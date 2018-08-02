@@ -90,16 +90,16 @@
 //! [this example](https://github.com/asonix/http-signatures/blob/master/examples/hyper_client.rs)
 //! for more information.
 
-use std::io::Read;
 use std::collections::BTreeMap;
+use std::io::Read;
 
-use create::HttpSignature;
-use error::{Error, CreationError};
-use prelude::*;
 use super::{SignatureAlgorithm, REQUEST_TARGET};
+use create::HttpSignature;
+use error::{CreationError, Error};
+use prelude::*;
 
-use hyper::Request as HyperRequest;
 use hyper::header::HeaderValue;
+use hyper::Request as HyperRequest;
 
 /// An implementation of `AsHttpSignature` for `hyper::Request`.
 ///
@@ -118,33 +118,33 @@ where
         let mut headers = BTreeMap::new();
         headers.insert(
             REQUEST_TARGET.into(),
-            vec![
-                if let Some(query) = self.uri().query() {
-                    format!(
-                        "{} {}?{}",
-                        self.method().as_ref().to_lowercase(),
-                        self.uri().path(),
-                        query
-                    )
-                } else {
-                    format!(
-                        "{} {}",
-                        self.method().as_ref().to_lowercase(),
-                        self.uri().path()
-                    )
-                },
-            ],
+            vec![if let Some(query) = self.uri().query() {
+                format!(
+                    "{} {}?{}",
+                    self.method().as_ref().to_lowercase(),
+                    self.uri().path(),
+                    query
+                )
+            } else {
+                format!(
+                    "{} {}",
+                    self.method().as_ref().to_lowercase(),
+                    self.uri().path()
+                )
+            }],
         );
 
-        let headers = self.headers().iter().fold(headers, |mut acc, (header_name, header_value)| {
-            let _ = header_value.to_str()
-                .map(|header_value|
-                     acc.entry(header_name.as_str().to_string())
-                     .or_insert_with(Vec::new)
-                     .push(header_value.to_string())
-                );
-            acc
-        });
+        let headers =
+            self.headers()
+                .iter()
+                .fold(headers, |mut acc, (header_name, header_value)| {
+                    let _ = header_value.to_str().map(|header_value| {
+                        acc.entry(header_name.as_str().to_string())
+                            .or_insert_with(Vec::new)
+                            .push(header_value.to_string())
+                    });
+                    acc
+                });
 
         HttpSignature::new(key_id, key, algorithm, headers).map_err(Error::from)
     }
@@ -171,8 +171,7 @@ where
         use hyper::header::AUTHORIZATION;
 
         let auth_header = self.authorization_header(key_id, key, algorithm)?;
-        let header = HeaderValue::from_str(&auth_header)
-            .or(Err(CreationError::NoHeaders))?;
+        let header = HeaderValue::from_str(&auth_header).or(Err(CreationError::NoHeaders))?;
         self.headers_mut().insert(AUTHORIZATION, header);
 
         Ok(self)
@@ -185,8 +184,7 @@ where
         algorithm: SignatureAlgorithm,
     ) -> Result<&mut Self, Error> {
         let sig_header = self.signature_header(key_id, key, algorithm)?;
-        let header = HeaderValue::from_str(&sig_header)
-            .or(Err(CreationError::NoHeaders))?;
+        let header = HeaderValue::from_str(&sig_header).or(Err(CreationError::NoHeaders))?;
         self.headers_mut().insert("Signature", header);
 
         Ok(self)
@@ -198,13 +196,13 @@ mod tests {
     use std::convert::TryInto;
     use std::fs::File;
 
-    use hyper::{Uri, Request};
     use hyper::header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE, DATE, HOST};
+    use hyper::{Request, Uri};
 
     use create::SigningString;
+    use prelude::*;
     use ShaSize;
     use SignatureAlgorithm;
-    use prelude::*;
 
     /* Request used for all tests:
      *
@@ -236,14 +234,22 @@ mod tests {
         let body = r#"{"hello": "world"}"#;
         let mut req = Request::post(uri).body(body).unwrap();
 
-        req.headers_mut().insert(HOST, HeaderValue::from_str("example.org").unwrap());
-        req.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_str("application/json").unwrap());
+        req.headers_mut()
+            .insert(HOST, HeaderValue::from_str("example.org").unwrap());
+        req.headers_mut().insert(
+            CONTENT_TYPE,
+            HeaderValue::from_str("application/json").unwrap(),
+        );
         req.headers_mut().insert(
             "Digest",
             HeaderValue::from_str("SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=").unwrap(),
         );
-        req.headers_mut().insert(DATE, HeaderValue::from_str("Tue, 07 Jun 2014 20:51:35 GMT").unwrap());
-        req.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_str("18").unwrap());
+        req.headers_mut().insert(
+            DATE,
+            HeaderValue::from_str("Tue, 07 Jun 2014 20:51:35 GMT").unwrap(),
+        );
+        req.headers_mut()
+            .insert(CONTENT_LENGTH, HeaderValue::from_str("18").unwrap());
 
         test_request(
             req,
@@ -259,7 +265,8 @@ host: example.org",
     fn test_request<B>(req: Request<B>, s: &str) {
         let key = File::open(PRIVATE_KEY_PATH).unwrap();
 
-        let http_sig = req.as_http_signature(KEY_ID.into(), key, ALGORITHM)
+        let http_sig = req
+            .as_http_signature(KEY_ID.into(), key, ALGORITHM)
             .unwrap();
 
         let signing_string: SigningString<File> = http_sig.try_into().unwrap();

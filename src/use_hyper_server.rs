@@ -25,13 +25,14 @@
 use hyper::header::AUTHORIZATION;
 use hyper::Request;
 
+use error::VerificationError;
 use prelude::*;
 use verify::SignedHeader;
-use error::VerificationError;
 
 impl<B> VerifyHeader for Request<B> {
     fn verify_signature_header<G: GetKey>(&self, key_getter: G) -> Result<(), VerificationError> {
-        let auth_header = self.headers()
+        let auth_header = self
+            .headers()
             .get("Signature")
             .ok_or(VerificationError::HeaderNotPresent)?
             .to_str()
@@ -44,7 +45,8 @@ impl<B> VerifyHeader for Request<B> {
         &self,
         key_getter: G,
     ) -> Result<(), VerificationError> {
-        let ref auth_header = self.headers()
+        let ref auth_header = self
+            .headers()
             .get(AUTHORIZATION)
             .ok_or(VerificationError::HeaderNotPresent)?
             .to_str()
@@ -54,21 +56,25 @@ impl<B> VerifyHeader for Request<B> {
     }
 }
 
-fn verify_header<G, B>(req: &Request<B>, header: &str, key_getter: G) -> Result<(), VerificationError>
+fn verify_header<G, B>(
+    req: &Request<B>,
+    header: &str,
+    key_getter: G,
+) -> Result<(), VerificationError>
 where
     G: GetKey,
 {
     let auth_header = SignedHeader::new(header)?;
 
-    let headers: Vec<(&str, &str)> = req.headers()
+    let headers: Vec<(&str, &str)> = req
+        .headers()
         .iter()
-        .filter_map(|(header_name, header_value)|
-                    header_value.to_str().ok()
-                    .map(|header_value|
-                              (header_name.as_str(), header_value)
-                    )
-        )
-        .collect();
+        .filter_map(|(header_name, header_value)| {
+            header_value
+                .to_str()
+                .ok()
+                .map(|header_value| (header_name.as_str(), header_value))
+        }).collect();
 
     auth_header.verify(
         headers.as_ref(),

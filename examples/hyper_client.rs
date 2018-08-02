@@ -20,12 +20,12 @@ extern crate tokio_core;
 
 use std::fs::File;
 
-use tokio_core::reactor::Core;
-use hyper::{Body, Client, Request};
-use hyper::header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE};
 use futures::{Future, Stream};
 use http_signatures::prelude::*;
 use http_signatures::{ShaSize, SignatureAlgorithm};
+use hyper::header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE};
+use hyper::{Body, Client, Request};
+use tokio_core::reactor::Core;
 
 fn main() {
     let key_id = "some-username-or-something";
@@ -36,9 +36,16 @@ fn main() {
 
     let json = r#"{"library":"hyper"}"#;
     let mut req = Request::post("http://localhost:3000")
-        .body(Body::from(json)).unwrap();;
-    req.headers_mut().insert(CONTENT_TYPE, HeaderValue::from_str("application/json").unwrap());
-    req.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_str(&format!("{}", json.len())).unwrap());
+        .body(Body::from(json))
+        .unwrap();
+    req.headers_mut().insert(
+        CONTENT_TYPE,
+        HeaderValue::from_str("application/json").unwrap(),
+    );
+    req.headers_mut().insert(
+        CONTENT_LENGTH,
+        HeaderValue::from_str(&format!("{}", json.len())).unwrap(),
+    );
 
     // Add the HTTP Signature
     req.with_signature_header(

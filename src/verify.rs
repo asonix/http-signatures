@@ -13,18 +13,18 @@
 // You should have received a copy of the GNU General Public License
 // along with HTTP Signatures  If not, see <http://www.gnu.org/licenses/>.
 
-use std::io::Read;
-use std::convert::{TryFrom, TryInto};
 use std::collections::HashMap;
+use std::convert::{TryFrom, TryInto};
+use std::io::Read;
 
-use ring::{digest, hmac, signature};
-use ring::error::Unspecified;
 use base64::decode;
+use ring::error::Unspecified;
+use ring::{digest, hmac, signature};
 use untrusted::Input;
 
-use prelude::*;
 use super::{ShaSize, SignatureAlgorithm, REQUEST_TARGET};
 use error::{DecodeError, VerificationError};
+use prelude::*;
 
 const KEY_ID: &str = "keyId";
 const HEADERS: &str = "headers";
@@ -82,14 +82,14 @@ impl<'a> TryFrom<&'a str> for SignedHeader<'a> {
 
     fn try_from(s: &'a str) -> Result<Self, Self::Error> {
         let s = s.trim_left_matches("Signature ");
-        let key_value = s.split(',')
+        let key_value = s
+            .split(',')
             .filter_map(|item| {
                 let eq_index = item.find('=')?;
                 let tup = item.split_at(eq_index);
                 let val = tup.1.get(1..)?;
                 Some((tup.0, val))
-            })
-            .collect::<HashMap<&str, &str>>();
+            }).collect::<HashMap<&str, &str>>();
 
         let key_id = key_value
             .get(KEY_ID)
@@ -109,8 +109,7 @@ impl<'a> TryFrom<&'a str> for SignedHeader<'a> {
             .get(ALGORITHM)
             .ok_or(DecodeError::MissingKey(ALGORITHM))?
             .trim_left_matches('"')
-            .trim_right_matches('"'))
-            .parse()?;
+            .trim_right_matches('"')).parse()?;
 
         let sig_string: String = key_value
             .get(SIGNATURE)
@@ -148,16 +147,16 @@ impl<'a> CheckSignedHeader<'a> {
             .get_key(self.auth_header.key_id)
             .map_err(|_| VerificationError::GetKey)?;
 
-        let headers: HashMap<String, Vec<&str>> = self.headers.iter().fold(
-            HashMap::new(),
-            |mut acc, &(key, value)| {
-                acc.entry(key.to_lowercase())
-                    .or_insert_with(Vec::new)
-                    .push(value);
+        let headers: HashMap<String, Vec<&str>> =
+            self.headers
+                .iter()
+                .fold(HashMap::new(), |mut acc, &(key, value)| {
+                    acc.entry(key.to_lowercase())
+                        .or_insert_with(Vec::new)
+                        .push(value);
 
-                acc
-            },
-        );
+                    acc
+                });
 
         let mut headers: HashMap<&str, String> = headers
             .iter()

@@ -140,10 +140,10 @@ pub mod use_reqwest;
 #[cfg(feature = "use_rocket")]
 pub mod use_rocket;
 
-pub mod prelude;
 mod create;
-mod verify;
 mod error;
+pub mod prelude;
+mod verify;
 
 use std::str::FromStr;
 
@@ -221,15 +221,15 @@ mod tests {
     use ring::{digest, hmac, rand};
 
     use std::collections::BTreeMap;
-    use std::io::Cursor;
     use std::fs::File;
+    use std::io::Cursor;
 
+    use super::ShaSize;
+    use super::SignatureAlgorithm;
+    use super::REQUEST_TARGET;
     use create::HttpSignature;
     use error::VerificationError;
     use prelude::*;
-    use super::REQUEST_TARGET;
-    use super::ShaSize;
-    use super::SignatureAlgorithm;
     use verify::SignedHeader;
 
     struct HmacKeyGetter {
